@@ -1,0 +1,45 @@
+# Maintainer: lorismaz
+#
+# Release: tag vX.Y.Z on GitHub, set pkgver, run `updpkgsums` and
+# `makepkg --printsrcinfo > .SRCINFO`, then push this folder to the AUR.
+
+pkgname=helio-strap
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Bluetooth helper for the Helio Strap Omarchy plugin: heart rate, steps and sleep from an Amazfit Helio Strap"
+arch=('x86_64' 'aarch64')
+url="https://github.com/lorismaz/omarchy-helio-strap"
+license=('MIT')
+depends=('bluez' 'dbus' 'glibc' 'libgcc' 'libsecret')
+makedepends=('cargo')
+options=('!lto')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+_dir() { echo "$srcdir/omarchy-helio-strap-$pkgver/helper"; }
+
+prepare() {
+  cd "$(_dir)"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+  cd "$(_dir)"
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR=target
+  cargo build --frozen --release
+}
+
+check() {
+  cd "$(_dir)"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo test --frozen
+}
+
+package() {
+  cd "$(_dir)"
+  install -Dm755 target/release/helio-strap "$pkgdir/usr/bin/helio-strap"
+  install -Dm644 ../LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 ../PROTOCOL.md "$pkgdir/usr/share/doc/$pkgname/PROTOCOL.md"
+}

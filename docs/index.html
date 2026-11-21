@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Helio Strap for Omarchy</title>
+<meta name="description" content="Steps, heart rate, sleep and a sleep coach from an Amazfit Helio Strap, in the Omarchy bar.">
+<style>
+  :root {
+    --bg: #f6f7fb;
+    --surface: #ffffff;
+    --text: #1f2335;
+    --muted: #5a607a;
+    --line: #dfe2ee;
+    --accent: #3d59a1;
+    --moon: #c0394f;
+    --code-bg: #eef0f8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1a1b26;
+      --surface: #1f2335;
+      --text: #c0caf5;
+      --muted: #8b93b8;
+      --line: #2f344d;
+      --accent: #7aa2f7;
+      --moon: #f7768e;
+      --code-bg: #24283b;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1a1b26;
+    --surface: #1f2335;
+    --text: #c0caf5;
+    --muted: #8b93b8;
+    --line: #2f344d;
+    --accent: #7aa2f7;
+    --moon: #f7768e;
+    --code-bg: #24283b;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 960px; margin: 0 auto; padding: 48px 16px 64px; }
+  header { display: grid; gap: 12px; margin-bottom: 32px; }
+  h1 { font-size: clamp(2rem, 5vw, 2.8rem); line-height: 1.15; margin: 0; letter-spacing: -0.02em; }
+  h1 .moon { color: var(--moon); }
+  .lede { font-size: 1.15rem; color: var(--muted); margin: 0; max-width: 60ch; }
+  h2 { font-size: 1.35rem; margin: 48px 0 12px; }
+  p { margin: 0 0 12px; max-width: 70ch; }
+  a { color: var(--accent); }
+  code, pre {
+    font-family: ui-monospace, "JetBrainsMono Nerd Font", "JetBrains Mono", Menlo, monospace;
+    font-size: 0.92em;
+  }
+  code { background: var(--code-bg); padding: 1px 6px; border-radius: 4px; }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    margin: 0 0 12px;
+  }
+  pre code { background: none; padding: 0; }
+  figure { margin: 0; }
+  .shot {
+    width: 100%;
+    height: auto;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    display: block;
+    background: #1a1b26;
+  }
+  figcaption { color: var(--muted); font-size: 0.9rem; margin-top: 8px; }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 18px 18px 8px;
+  }
+  .card h3 { margin: 0 0 6px; font-size: 1.05rem; }
+  .card p { color: var(--muted); font-size: 0.95rem; }
+  .moonrow { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+  .moonrow img { max-width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line); }
+  ul { padding-left: 20px; margin: 0 0 12px; }
+  li { margin-bottom: 4px; }
+  .note {
+    border-left: 3px solid var(--accent);
+    padding: 4px 0 4px 14px;
+    color: var(--muted);
+    margin: 16px 0;
+  }
+  footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Helio Strap for Omarchy <span class="moon" aria-hidden="true">☾</span></h1>
+    <p class="lede">Today's steps, live heart rate and last night's sleep from an Amazfit Helio Strap, right in the Omarchy bar, with a sleep coach that tells you when it's time to stop.</p>
+  </header>
+
+  <figure>
+    <img class="shot" src="preview.png" width="1200" height="1681"
+         alt="The Helio Strap panel in its two views and its settings page. Move: today's steps, steps per hour, last night's sleep and debt in one line. Sleep: tonight's bedtime countdown and plan, last night's sleep with stages and sleep debt. Settings: a wake-up time for each weekday, sleep need, move reminders and the bar display.">
+    <figcaption>The panel's Move view (top left) by day and Sleep view (bottom left) in the evening, and its settings page (right). In the bar, a moon turns red once you're past bedtime.</figcaption>
+  </figure>
+
+  <h2>What it does</h2>
+  <div class="cards">
+    <div class="card">
+      <h3>Steps in the bar</h3>
+      <p>Today's step count, distance and calories, with a daily goal. The bar can show steps, heart rate, or both.</p>
+    </div>
+    <div class="card">
+      <h3>Heart rate</h3>
+      <p>Live bpm with five zones, a ten-minute chart and session min, average and max. Works with any Bluetooth LE heart rate strap.</p>
+    </div>
+    <div class="card">
+      <h3>Sleep and sleep debt</h3>
+      <p>Last night's sleep and stages, and a running sleep debt in real hours: recent nights count most, and one long night can't erase a short week.</p>
+    </div>
+    <div class="card">
+      <h3>A bedtime that fits your week</h3>
+      <p>Set a wake-up time per weekday, or mark a morning as free. Bedtime follows the next morning and moves a little earlier when you owe sleep.</p>
+    </div>
+  </div>
+
+  <h2>A red moon when it's time to stop</h2>
+  <div class="moonrow">
+    <img src="bar-moon.png" width="1400" height="116" alt="The Omarchy bar with a red moon next to the clock.">
+  </div>
+  <p>An hour before bedtime the bar shows a moon. Past bedtime it turns red. Notifications stay few, and only while you're actually at the computer: a wind-down notice, a bedtime notice, two reminders after it, then silence. In the morning you get one summary of the night.</p>
+
+  <h2>Install</h2>
+  <pre><code>omarchy plugin add https://github.com/lorismaz/omarchy-helio-strap --enable</code></pre>
+  <p>The panel talks to the strap through a small Bluetooth helper written in Rust, packaged on the AUR as <code>helio-strap</code>. The first time you open the panel it offers <strong>Install helper</strong>, which runs <code>omarchy pkg aur add helio-strap</code>.</p>
+  <p>Pair the strap in Omarchy's Bluetooth panel. Heart rate, zones and battery work straight away.</p>
+
+  <h2>Steps and sleep</h2>
+  <p>The strap shares steps and sleep only over Zepp's encrypted channel, which needs the strap's auth key. Click <strong>Set up steps</strong> in the panel and either log in with your Zepp account (email and password) or paste a key you already have, for example from Gadgetbridge. The key is saved to your desktop keyring, never to a file.</p>
+  <p class="note">This uses Zepp's private API, so it may stop working if Zepp changes it; heart rate keeps working regardless. Accounts that sign in with Google, Apple or a phone number need a password added in the Zepp app first. Sleep data is always read with "keep on device", so the Zepp app still syncs the same nights.</p>
+
+  <h2>Settings</h2>
+  <p>Open the panel and click <strong>Settings</strong>: wake-up time for each weekday, sleep you need, minutes to fall asleep, bedtime reminders, step goal, maximum heart rate, what the bar shows, and the strap to follow. Everything also works from the terminal:</p>
+  <pre><code>omarchy bar set lorismaz.helio-strap wakeWed 09:00
+omarchy bar set lorismaz.helio-strap sleepNeed 7h30</code></pre>
+
+  <h2>Why these rules</h2>
+  <ul>
+    <li>Chronic short sleep builds a deficit people stop noticing (Van Dongen et al., 2003).</li>
+    <li>One long night doesn't repay it; recovery takes days (Banks et al., 2010; Kitamura et al., 2016), so a night repays at most two hours.</li>
+    <li>Regular sleep times matter independently of duration (Phillips et al., 2017; Windred et al., 2024), so free mornings allow at most an hour's lie-in.</li>
+    <li>Repeated reminders lose their effect (Giuntella, Saccardo &amp; Sadoff, 2025), so the evening sequence is short.</li>
+  </ul>
+  <p>The debt levels follow Oura and Rise; the decay rate, payback and regularity thresholds are heuristics, not validated values.</p>
+
+  <h2>Privacy</h2>
+  <p>Everything stays on your machine. The only network traffic is the optional Zepp login during setup, which talks to Zepp's servers.</p>
+
+  <footer>
+    MIT licensed. The helper is written from the protocol notes in <a href="https://github.com/lorismaz/omarchy-helio-strap/blob/main/PROTOCOL.md">PROTOCOL.md</a>, facts from public reverse-engineering of Zepp OS devices (notably by <a href="https://codeberg.org/Freeyourgadget/Gadgetbridge">Gadgetbridge</a>); the Zepp login follows <a href="https://codeberg.org/argrento/huami-token">huami-token</a>.
+    Not affiliated with or endorsed by Amazfit, Zepp Health or Huami.
+    Source on <a href="https://github.com/lorismaz/omarchy-helio-strap">GitHub</a>.
+  </footer>
+</main>
+</body>
+</html>

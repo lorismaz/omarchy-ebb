@@ -1,0 +1,204 @@
+{
+  "schemaVersion": 1,
+  "id": "lorismaz.helio-strap",
+  "name": "Helio Strap",
+  "version": "1.0.0",
+  "author": "lorismaz",
+  "license": "MIT",
+  "description": "Movement by day and a sleep coach by night, from an Amazfit Helio Strap: steps, move reminders, sleep, sleep debt and bedtime reminders in the Omarchy bar.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Helio Strap",
+    "description": "Steps and move reminders during the day; from two hours before bedtime the panel becomes a sleep coach, and a moon in the bar turns red past bedtime.",
+    "category": "Status",
+    "allowMultiple": false,
+    "defaultSection": "centerBegin",
+    "defaults": {
+      "deviceName": "Helio",
+      "maxHeartRate": 190,
+      "autoReconnect": true,
+      "showZoneInBar": false,
+      "barShows": "Heart rate and steps",
+      "stepGoal": 8000,
+      "sleepNeed": "8h",
+      "fallAsleep": 15,
+      "lateAlerts": true,
+      "wakeMon": "07:00",
+      "wakeTue": "07:00",
+      "wakeWed": "07:00",
+      "wakeThu": "07:00",
+      "wakeFri": "07:00",
+      "wakeSat": "free",
+      "wakeSun": "free",
+      "fallAsleepAuto": true,
+      "moveReminders": true,
+      "moveEvery": 50,
+      "moveSteps": 100
+    },
+    "schema": [
+      {
+        "key": "wakeMon",
+        "type": "string",
+        "label": "Wake-up Monday",
+        "defaultValue": "07:00",
+        "description": "24-hour time like 07:00, or free for a morning without an alarm (the plan then allows at most an hour's lie-in). Bedtime each evening follows the next morning."
+      },
+      {
+        "key": "wakeTue",
+        "type": "string",
+        "label": "Wake-up Tuesday",
+        "defaultValue": "07:00"
+      },
+      {
+        "key": "wakeWed",
+        "type": "string",
+        "label": "Wake-up Wednesday",
+        "defaultValue": "07:00"
+      },
+      {
+        "key": "wakeThu",
+        "type": "string",
+        "label": "Wake-up Thursday",
+        "defaultValue": "07:00"
+      },
+      {
+        "key": "wakeFri",
+        "type": "string",
+        "label": "Wake-up Friday",
+        "defaultValue": "07:00"
+      },
+      {
+        "key": "wakeSat",
+        "type": "string",
+        "label": "Wake-up Saturday",
+        "defaultValue": "free"
+      },
+      {
+        "key": "wakeSun",
+        "type": "string",
+        "label": "Wake-up Sunday",
+        "defaultValue": "free"
+      },
+      {
+        "key": "sleepNeed",
+        "type": "enum",
+        "label": "Sleep you need",
+        "options": [
+          "6h",
+          "6h30",
+          "7h",
+          "7h30",
+          "8h",
+          "8h30",
+          "9h",
+          "9h30",
+          "10h"
+        ],
+        "defaultValue": "8h"
+      },
+      {
+        "key": "fallAsleepAuto",
+        "type": "boolean",
+        "label": "Measure time to fall asleep",
+        "defaultValue": true,
+        "description": "Learns how long you take to fall asleep from the strap's minute data (median of the last 14 nights, after 5 complete nights)."
+      },
+      {
+        "key": "fallAsleep",
+        "type": "integer",
+        "label": "Minutes to fall asleep (when not measured)",
+        "min": 0,
+        "max": 90,
+        "step": 5,
+        "defaultValue": 15
+      },
+      {
+        "key": "lateAlerts",
+        "type": "boolean",
+        "label": "Bedtime reminders",
+        "defaultValue": true,
+        "description": "A wind-down notice an hour before bedtime, a bedtime notice, then two reminders while you are still at the computer, plus a morning summary."
+      },
+      {
+        "key": "barShows",
+        "type": "enum",
+        "label": "Show in the bar",
+        "options": [
+          "Heart rate and steps",
+          "Heart rate",
+          "Steps"
+        ],
+        "defaultValue": "Heart rate and steps"
+      },
+      {
+        "key": "maxHeartRate",
+        "type": "integer",
+        "label": "Maximum heart rate",
+        "min": 100,
+        "max": 230,
+        "step": 1,
+        "defaultValue": 190,
+        "description": "Sets the five heart rate zones. A common estimate is 220 minus your age."
+      },
+      {
+        "key": "moveReminders",
+        "type": "boolean",
+        "label": "Move reminders",
+        "defaultValue": true,
+        "description": "While you're at the computer, a nudge after sitting too long. Walking the set number of steps clears it."
+      },
+      {
+        "key": "moveEvery",
+        "type": "integer",
+        "label": "Remind after sitting (minutes)",
+        "min": 20,
+        "max": 180,
+        "step": 5,
+        "defaultValue": 50
+      },
+      {
+        "key": "moveSteps",
+        "type": "integer",
+        "label": "Steps that count as moving (within 10 minutes)",
+        "min": 30,
+        "max": 1000,
+        "step": 10,
+        "defaultValue": 100
+      },
+      {
+        "key": "stepGoal",
+        "type": "integer",
+        "label": "Daily step goal",
+        "min": 500,
+        "max": 100000,
+        "step": 500,
+        "defaultValue": 8000
+      },
+      {
+        "key": "deviceName",
+        "type": "string",
+        "label": "Strap name contains",
+        "defaultValue": "Helio",
+        "description": "Follows the first paired Bluetooth device whose name contains this text. Leave empty to use any paired heart rate strap."
+      },
+      {
+        "key": "autoReconnect",
+        "type": "boolean",
+        "label": "Reconnect automatically",
+        "defaultValue": true,
+        "description": "Try to reconnect the strap every 30 seconds while it is disconnected."
+      },
+      {
+        "key": "showZoneInBar",
+        "type": "boolean",
+        "label": "Show the zone next to the heart rate",
+        "defaultValue": false
+      }
+    ]
+  }
+}
