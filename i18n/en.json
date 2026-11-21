@@ -143,5 +143,15 @@
   "settings.moveEvery": "Remind after sitting (min)",
   "settings.moveSteps": "Steps that count as moving",
   "helper.missing": "The Bluetooth helper isn't installed yet. Install helper downloads it from this plugin's GitHub release and checks it before installing.",
-  "action.installHelper": "Install helper"
+  "action.installHelper": "Install helper",
+  "confirm.title": "Which strap is yours?",
+  "confirm.body": "Nothing is read from a strap until you confirm it's yours. On a shared computer, a paired strap may belong to someone else.",
+  "confirm.none": "No paired strap found. Pair yours in Omarchy's Bluetooth panel.",
+  "confirm.choose": "This is mine: %1 (%2)",
+  "settings.confirmed": "Your strap: %1",
+  "settings.noConfirmed": "No strap confirmed yet",
+  "action.forgetStrap": "Forget",
+  "tooltip.unconfirmed": "Helio Strap: confirm your strap in the panel",
+  "helper.outdated": "The Bluetooth helper (version %1) needs an update for this version of the plugin.",
+  "action.updateHelper": "Update helper"
 }

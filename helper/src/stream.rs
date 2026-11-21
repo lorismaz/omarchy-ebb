@@ -42,6 +42,7 @@ fn zepp_uuid(short: u16) -> Uuid {
 struct Printer {
     status: Option<Value>,
     steps_status: Option<String>,
+    candidates: Option<Value>,
 }
 
 impl Printer {
@@ -61,6 +62,16 @@ impl Printer {
         if self.status.as_ref() != Some(&v) {
             self.print(&v);
             self.status = Some(v);
+        }
+    }
+
+    /// Straps the user could confirm: names and addresses only, nothing read from them.
+    fn candidates(&mut self, list: &[Info]) {
+        let devices: Vec<Value> = list.iter().map(|i| json!({"name": i.name, "address": i.address})).collect();
+        let v = json!({"t": "candidates", "devices": devices});
+        if self.candidates.as_ref() != Some(&v) {
+            self.print(&v);
+            self.candidates = Some(v);
         }
     }
 
@@ -101,19 +112,31 @@ async fn info(dev: &Device) -> Info {
     }
 }
 
-/// The first paired device whose name contains the filter (any heart rate
-/// strap when the filter is empty), preferring one that is connected.
-async fn find(adapter: &Adapter, filter: &str) -> Option<(Device, Info)> {
-    let mut best: Option<(Device, Info)> = None;
-    for addr in adapter.device_addresses().await.ok()? {
+const MAX_CANDIDATES: usize = 8;
+
+/// Paired devices whose name contains the filter (any heart rate strap when
+/// the filter is empty). Only listed for the user to confirm: never connected
+/// to or read from, because on a shared computer a paired strap may be
+/// someone else's.
+async fn candidates(adapter: &Adapter, filter: &str) -> Vec<Info> {
+    let mut out = Vec::new();
+    for addr in adapter.device_addresses().await.unwrap_or_default() {
         let Ok(dev) = adapter.device(addr) else { continue };
         let i = info(&dev).await;
         let wanted = i.paired && if filter.is_empty() { i.heart_rate } else { i.name.to_lowercase().contains(filter) };
-        if wanted && best.as_ref().is_none_or(|(_, b)| !b.connected && i.connected) {
-            best = Some((dev, i));
+        if wanted && out.len() < MAX_CANDIDATES {
+            out.push(i);
         }
     }
-    best
+    out.sort_by(|a, b| a.address.cmp(&b.address));
+    out
+}
+
+/// The strap the user confirmed, if it is still paired.
+async fn confirmed(adapter: &Adapter, address: bluer::Address) -> Option<(Device, Info)> {
+    let dev = adapter.device(address).ok()?;
+    let i = info(&dev).await;
+    i.paired.then_some((dev, i))
 }
 
 /// Wait until BlueZ reports a change for this device or the adapter, or `limit`.
@@ -148,7 +171,9 @@ async fn changes(adapter: &Adapter, dev: Option<&Device>, limit: Duration) {
     }
 }
 
-pub async fn run(filter: String, reconnect: bool) -> i32 {
+/// `address`: the strap the user confirmed in the panel. Without one, only
+/// candidates are listed and nothing is read from any device.
+pub async fn run(filter: String, reconnect: bool, address: Option<bluer::Address>) -> i32 {
     let filter = filter.trim().to_lowercase();
     let mut out = Printer::default();
     let adapter = match bluer::Session::new().await {
@@ -164,9 +189,17 @@ pub async fn run(filter: String, reconnect: bool) -> i32 {
             return 1; // the panel restarts the helper
         }
     };
+    let Some(address) = address else {
+        loop {
+            let list = candidates(&adapter, &filter).await;
+            out.candidates(&list);
+            out.status("unconfirmed", None);
+            changes(&adapter, None, RETRY).await;
+        }
+    };
     let mut zepp = Zepp::default();
     loop {
-        let Some((dev, i)) = find(&adapter, &filter).await else {
+        let Some((dev, i)) = confirmed(&adapter, address).await else {
             out.status("searching", None);
             changes(&adapter, None, RETRY).await;
             continue;

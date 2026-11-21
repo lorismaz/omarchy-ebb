@@ -43,7 +43,10 @@ SHA-256 against the value pinned in the script, and installs it to
 A `helio-strap` already on your `PATH` (for example one you built yourself) is used
 instead. An AUR package is ready in `packaging/aur/` for when AUR registration reopens.
 
-Then pair the strap in Omarchy's Bluetooth panel. Heart rate, zones and battery work straight away.
+Then pair the strap in Omarchy's Bluetooth panel, open the panel and confirm it with
+**This is mine**. Nothing is read from any strap until you do: on a shared computer, a
+paired strap may be someone else's. Heart rate, zones and battery then work straight away.
+To switch straps, use **Forget** under Settings → Strap.
 
 ## Steps (optional)
 
@@ -124,6 +127,14 @@ The `helio-strap` helper (above), BlueZ, and a Secret Service keyring
 Everything stays on your machine. The only network traffic is the optional Zepp login
 in Set up steps, which talks to Zepp's servers over HTTPS, and downloading the helper
 from GitHub when you click Install helper.
+
+- Only the strap you confirmed is followed; other paired devices are listed by name
+  and address for you to choose from, never connected to or read.
+- Notifications go to the desktop over D-Bus through the helper, so their contents
+  (sleep, bedtime, sitting time) never appear on a command line other accounts could see.
+- Sleep history and daily activity live in `~/.local/state/helio-strap/`, which the
+  plugin keeps private to your account (mode 0700), one sleep history per strap.
+- The Zepp auth key is in your desktop keyring, never in a file.
 
 ## Tests
 

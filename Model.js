@@ -11,7 +11,7 @@ var HISTORY_SECONDS = 600     // the chart spans the last ten minutes
 var SAMPLE_SECONDS = 5        // one chart point every five seconds
 var MAX_POINTS = HISTORY_SECONDS / SAMPLE_SECONDS
 var STALE_MS = 15000          // no reading for this long: show "--"
-var STATES = ["searching", "disconnected", "connecting", "connected"]
+var STATES = ["unconfirmed", "searching", "disconnected", "connecting", "connected"]
 
 function clampInt(v, lo, hi) {
   var n = Math.round(Number(v))
@@ -22,6 +22,22 @@ function clampInt(v, lo, hi) {
 function cleanText(v, max) {
   var s = String(v === undefined || v === null ? "" : v).replace(/[\u0000-\u001f\u007f]/g, "")
   return s.length > max ? s.slice(0, max - 1) + "…" : s
+}
+
+// "1.0.0" < "1.1.0"; anything unparsable counts as older.
+function versionLess(v, min) {
+  var parse = function(x) { var m = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(x || "").trim()); return m ? [+m[1], +m[2], +m[3]] : null }
+  var a = parse(v), b = parse(min)
+  if (!a || !b) return true
+  for (var i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] < b[i]
+  return false
+}
+
+// A Bluetooth address "AA:BB:CC:DD:EE:FF" (upper case), or "" if not one.
+var MAX_CANDIDATES = 8
+function normalizeAddress(v) {
+  var s = String(v === undefined || v === null ? "" : v).trim().toUpperCase()
+  return /^[0-9A-F]{2}(:[0-9A-F]{2}){5}$/.test(s) ? s : ""
 }
 
 // One line of `helio-strap stream` output -> a validated event, or null.
@@ -50,6 +66,16 @@ function parseLine(line) {
   if (obj.t === "battery") {
     var level = clampInt(obj.level, 0, 100)
     return level === null ? null : { type: "battery", level: level }
+  }
+  if (obj.t === "candidates") {
+    if (!Array.isArray(obj.devices)) return null
+    var devices = []
+    for (var i = 0; i < obj.devices.length && devices.length < MAX_CANDIDATES; i++) {
+      var d = obj.devices[i]
+      var address = d && typeof d === "object" ? normalizeAddress(d.address) : ""
+      if (address !== "") devices.push({ name: cleanText(d.name, MAX_NAME), address: address })
+    }
+    return { type: "candidates", devices: devices }
   }
   if (obj.t === "status") {
     if (STATES.indexOf(obj.state) < 0) return null

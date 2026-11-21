@@ -4,7 +4,7 @@ const path = require("path")
 const assert = require("assert")
 
 const src = fs.readFileSync(path.join(__dirname, "..", "Model.js"), "utf8").replace(".pragma library", "")
-const M = new Function(src + "; return { parseLine, zoneFor, zoneBounds, normalizeMaxHr, emptyStats, addReading, average, pushPoint, rmssd, pushRR, formatDuration, batteryIcon, normalizeStepGoal, normalizeBarMode, goalProgress, parseClock, normalizeBedtime, formatClock, dayKey, minutesPastBedtime, freshDay, loadDay, withChanges, hoursMinutes, parseSleepNeed, normalizeWake, normalizeFallAsleep, bedtimeFor, sleepIfBedNow, SLEEP_NEEDS, parseNight, lastNight, mergeNights, parseNightList, debtBalance, circularStats, regularity, planNight, eveningAction, morningAction, localDateKey, scheduleFromDays, wakeTarget, targetMorning, WAKE_KEYS, applyLatency, typicalLatency, recordSteps, movedRecently, moveAction, normalizeMoveEvery, normalizeMoveSteps, hourBars, autoView, clockSet, rebaseUnsetClock, minutesUntilBedtime, MAX_POINTS, MAX_NAME };")()
+const M = new Function(src + "; return { parseLine, zoneFor, zoneBounds, normalizeMaxHr, emptyStats, addReading, average, pushPoint, rmssd, pushRR, formatDuration, batteryIcon, normalizeStepGoal, normalizeBarMode, goalProgress, parseClock, normalizeBedtime, formatClock, dayKey, minutesPastBedtime, freshDay, loadDay, withChanges, hoursMinutes, parseSleepNeed, normalizeWake, normalizeFallAsleep, bedtimeFor, sleepIfBedNow, SLEEP_NEEDS, parseNight, lastNight, mergeNights, parseNightList, debtBalance, circularStats, regularity, planNight, eveningAction, morningAction, localDateKey, scheduleFromDays, wakeTarget, targetMorning, WAKE_KEYS, applyLatency, typicalLatency, recordSteps, movedRecently, moveAction, normalizeMoveEvery, normalizeMoveSteps, hourBars, autoView, clockSet, rebaseUnsetClock, minutesUntilBedtime, normalizeAddress, versionLess, MAX_POINTS, MAX_NAME };")()
 
 // Heart rate lines
 let ev = M.parseLine('{"t":"hr","bpm":72,"contact":null,"rr":[812,830]}')
@@ -343,3 +343,22 @@ assert.strictEqual(M.rebaseUnsetClock(real - 3600000, real), real - 3600000)
 const bedAt = 22 * 60 + 33
 assert.strictEqual(M.minutesUntilBedtime(M.minutesPastBedtime(new Date(2026, 10, 21, 9, 0), bedAt)), 813)
 assert.strictEqual(M.minutesUntilBedtime(M.minutesPastBedtime(new Date(2026, 10, 21, 21, 33), bedAt)), 60)
+
+// Strap confirmation: only well-formed addresses, bounded candidate lists, plain names.
+assert.strictEqual(M.normalizeAddress(" c3:c4:bd:b7:27:4c "), "C3:C4:BD:B7:27:4C")
+for (const bad of ["", null, undefined, "C3:C4:BD:B7:27", "C3-C4-BD-B7-27-4C", "C3:C4:BD:B7:27:4G", "x".repeat(40)])
+  assert.strictEqual(M.normalizeAddress(bad), "")
+const cand = M.parseLine(JSON.stringify({ t: "candidates", devices: [
+  { name: "<b>Helio</b>\u0007", address: "c3:c4:bd:b7:27:4c" }, { name: "x", address: "nope" }, "junk",
+  ...Array.from({ length: 20 }, (_, i) => ({ name: "s" + i, address: "00:00:00:00:00:" + String(i).padStart(2, "0") }))] }))
+assert.strictEqual(cand.type, "candidates")
+assert.strictEqual(cand.devices.length, 8)
+assert.deepStrictEqual(cand.devices[0], { name: "<b>Helio</b>", address: "C3:C4:BD:B7:27:4C" })
+assert.strictEqual(M.parseLine('{"t":"candidates","devices":"x"}'), null)
+assert.strictEqual(M.parseLine('{"t":"status","state":"unconfirmed"}').state, "unconfirmed")
+
+assert.strictEqual(M.versionLess("1.0.0", "1.1.0"), true)
+assert.strictEqual(M.versionLess("1.1.0", "1.1.0"), false)
+assert.strictEqual(M.versionLess("1.10.0", "1.9.9"), false)
+assert.strictEqual(M.versionLess("", "1.1.0"), true)
+assert.strictEqual(M.versionLess("garbage", "1.1.0"), true)

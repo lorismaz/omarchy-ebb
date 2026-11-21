@@ -143,5 +143,15 @@
   "settings.moveEvery": "Rappel après assis (min)",
   "settings.moveSteps": "Pas comptés comme mouvement",
   "helper.missing": "L'assistant Bluetooth n'est pas encore installé. Installer l'assistant le télécharge depuis la release GitHub du plugin et le vérifie avant de l'installer.",
-  "action.installHelper": "Installer l'assistant"
+  "action.installHelper": "Installer l'assistant",
+  "confirm.title": "Quel bracelet est le vôtre ?",
+  "confirm.body": "Rien n'est lu depuis un bracelet tant que vous n'avez pas confirmé qu'il est à vous. Sur un ordinateur partagé, un bracelet appairé peut appartenir à quelqu'un d'autre.",
+  "confirm.none": "Aucun bracelet appairé. Appairez le vôtre dans le panneau Bluetooth d'Omarchy.",
+  "confirm.choose": "C'est le mien : %1 (%2)",
+  "settings.confirmed": "Votre bracelet : %1",
+  "settings.noConfirmed": "Aucun bracelet confirmé",
+  "action.forgetStrap": "Oublier",
+  "tooltip.unconfirmed": "Helio Strap : confirmez votre bracelet dans le panneau",
+  "helper.outdated": "L'assistant Bluetooth (version %1) doit être mis à jour pour cette version du plugin.",
+  "action.updateHelper": "Mettre à jour l'assistant"
 }

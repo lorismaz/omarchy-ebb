@@ -23,6 +23,10 @@ Panel {
   manageIpc: false
 
   readonly property string deviceFilter: String(setting("deviceName", "Helio") || "")
+  // The strap the user confirmed as theirs. Until then nothing is read from any
+  // device: on a shared computer a paired strap may be someone else's.
+  readonly property string confirmedAddress: Model.normalizeAddress(setting("deviceAddress", ""))
+  property var candidates: []
   readonly property bool autoReconnect: setting("autoReconnect", true) !== false
   readonly property int maxHr: Model.normalizeMaxHr(setting("maxHeartRate", 190))
   readonly property bool showZoneInBar: setting("showZoneInBar", false) === true
@@ -80,7 +84,9 @@ Panel {
   function handle(line) {
     var ev = Model.parseLine(line)
     if (!ev) return
-    if (ev.type === "status") {
+    if (ev.type === "candidates") {
+      root.candidates = ev.devices
+    } else if (ev.type === "status") {
       root.linkState = ev.state
       if (ev.name !== "") root.deviceName = ev.name
       if (ev.state !== "connected") root.rrBuffer = []
@@ -107,10 +113,10 @@ Panel {
       root.hourly = { day: ev.day, hours: ev.hours }
     } else if (ev.type === "latency") {
       root.nights = Model.applyLatency(root.nights, ev.nights)
-      nightsFile.setText(JSON.stringify(root.nights) + "\n")
+      root.saveNights()
     } else if (ev.type === "sleep") {
       root.nights = Model.mergeNights(root.nights, ev.nights, Date.now())
-      nightsFile.setText(JSON.stringify(root.nights) + "\n")
+      root.saveNights()
     } else if (ev.type === "steps-status") {
       root.stepsState = ev.state
     } else if (ev.type === "hr" && ev.valid) {
@@ -185,9 +191,13 @@ Panel {
   // helio-strap is found on PATH (a package or a local build) or in the
   // plugin's own data folder, where install-helper.sh puts the release binary.
   property bool helperMissing: false
+  property bool helperOutdated: false
   property string helperPath: ""
+  property string helperVersion: ""
+  // Oldest helper that follows only the confirmed strap and takes notifications on stdin.
+  readonly property string helperRequired: "1.1.0"
   readonly property string installScript: Qt.resolvedUrl("install-helper.sh").toString().replace(/^file:\/\//, "")
-  readonly property var helperCommand: [root.helperPath, "stream", root.deviceFilter, root.autoReconnect ? "1" : "0"]
+  readonly property var helperCommand: [root.helperPath, "stream", root.deviceFilter, root.autoReconnect ? "1" : "0", root.confirmedAddress]
   onHelperCommandChanged: if (helperProc.running) helperProc.running = false   // restartTimer relaunches it
 
   function installHelper() {
@@ -199,13 +209,20 @@ Panel {
 
   Process {
     id: helperCheck
-    command: ["sh", "-c", "command -v helio-strap || { f=\"${XDG_DATA_HOME:-$HOME/.local/share}/helio-strap/bin/helio-strap\"; [ -x \"$f\" ] && echo \"$f\"; }"]
+    command: ["sh", "-c", "p=$(command -v helio-strap) || { p=\"${XDG_DATA_HOME:-$HOME/.local/share}/helio-strap/bin/helio-strap\"; [ -x \"$p\" ] || exit 1; }; echo \"$p\"; \"$p\" --version"]
     running: true
-    stdout: SplitParser { onRead: function(line) { if (root.helperPath === "") root.helperPath = String(line).trim() } }
-    onStarted: root.helperPath = ""
+    stdout: SplitParser {
+      onRead: function(line) {
+        var l = String(line).trim()
+        if (root.helperPath === "") root.helperPath = l
+        else if (root.helperVersion === "") root.helperVersion = l.replace(/^helio-strap\s+/, "")
+      }
+    }
+    onStarted: { root.helperPath = ""; root.helperVersion = "" }
     onExited: function(exitCode) {
       root.helperMissing = root.helperPath === ""
-      if (root.helperMissing) restartTimer.restart()
+      root.helperOutdated = !root.helperMissing && Model.versionLess(root.helperVersion, root.helperRequired)
+      if (root.helperMissing || root.helperOutdated) restartTimer.restart()
       else helperProc.running = true
     }
   }
@@ -214,6 +231,7 @@ Panel {
     id: helperProc
     command: root.helperCommand
     running: false
+    stdinEnabled: true
     stdout: SplitParser { onRead: function(line) { root.handle(line) } }
     stderr: SplitParser {
       onRead: function(line) { root.helperError = String(line).slice(0, 200) }
@@ -349,9 +367,24 @@ Panel {
     return new Date(epochSeconds * 1000).toLocaleTimeString(Qt.locale(Commons.I18n.formatLocale), "HH:mm")
   }
 
+  // Sent through the helper over D-Bus: health details never go on a command
+  // line, where other local accounts could read them.
   function notify(title, body, urgent) {
-    Quickshell.execDetached(["notify-send", "-a", "Helio Strap", "-i", "weather-clear-night",
-                             "-u", urgent ? "critical" : "normal", title, body])
+    if (helperProc.running)
+      helperProc.write(JSON.stringify({ t: "notify", title: String(title), body: String(body), urgent: urgent === true }) + "\n")
+  }
+
+  function saveNights() {
+    if (root.nightsPath !== "") nightsFile.setText(JSON.stringify(root.nights) + "\n")
+  }
+
+  function confirmStrap(address) {
+    var a = Model.normalizeAddress(address)
+    if (a !== "") root.setSetting("deviceAddress", a)
+  }
+
+  function forgetStrap() {
+    root.setSetting("deviceAddress", "")
   }
 
   function saveDay(next) {
@@ -422,15 +455,21 @@ Panel {
     onLoadFailed: root.dayLoaded = true
   }
 
+  // One sleep history per confirmed strap.
+  readonly property string nightsPath: confirmedAddress !== ""
+    ? root.stateDir + "/nights-" + confirmedAddress.replace(/:/g, "") + ".json" : ""
+  onNightsPathChanged: root.nights = []
+
   FileView {
     id: nightsFile
-    path: root.stateDir + "/nights.json"
+    path: root.nightsPath
     atomicWrites: true
     printErrors: false
     onLoaded: root.nights = Model.mergeNights(Model.parseNightList(text()), root.nights, Date.now())
   }
 
-  Component.onCompleted: Quickshell.execDetached(["mkdir", "-p", root.stateDir])
+  // Private to this account (0700), also when the folder already exists.
+  Component.onCompleted: Quickshell.execDetached(["install", "-d", "-m", "700", root.stateDir])
 
   Timer {
     interval: 60000
@@ -1315,19 +1354,54 @@ Panel {
           }
         }
 
+        // Which strap is yours? Nothing is read until one is confirmed.
+        Column {
+          visible: !root.helperMissing && !root.helperOutdated && root.confirmedAddress === ""
+          width: parent.width
+          spacing: Style.space(8)
+
+          PlainText {
+            width: parent.width
+            text: strings.t("confirm.title")
+            font.pixelSize: Style.font.body
+            font.bold: true
+          }
+          PlainText {
+            width: parent.width
+            wrapMode: Text.Wrap
+            text: root.candidates.length > 0 ? strings.t("confirm.body") : strings.t("confirm.none")
+            color: root.dim
+            font.pixelSize: Style.font.bodySmall
+          }
+          Repeater {
+            model: root.candidates
+            Button {
+              required property var modelData
+              width: parent.width
+              iconText: "󰂯"
+              text: strings.t("confirm.choose").arg(modelData.name !== "" ? modelData.name : strings.t("title")).arg(modelData.address)
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              fontSize: Style.font.bodySmall
+              bordered: true
+              onClicked: root.confirmStrap(modelData.address)
+            }
+          }
+        }
+
         PlainText {
-          visible: root.helperMissing
-          text: strings.t("helper.missing")
+          visible: root.helperMissing || root.helperOutdated
+          text: root.helperOutdated ? strings.t("helper.outdated").arg(root.helperVersion) : strings.t("helper.missing")
           color: root.urgent
           font.pixelSize: Style.font.bodySmall
           wrapMode: Text.Wrap
           width: parent.width
         }
         Button {
-          visible: root.helperMissing
+          visible: root.helperMissing || root.helperOutdated
           width: parent.width
           iconText: "󰏔"
-          text: strings.t("action.installHelper")
+          text: strings.t(root.helperOutdated ? "action.updateHelper" : "action.installHelper")
           foreground: root.foreground
           fontFamily: root.fontFamily
           fontSize: Style.font.body
@@ -1338,7 +1412,7 @@ Panel {
         }
 
         PlainText {
-          visible: !root.helperMissing && root.linkState === "searching" && root.helperError !== ""
+          visible: !root.helperMissing && !root.helperOutdated && root.linkState === "searching" && root.helperError !== ""
           text: root.helperError
           color: root.urgent
           font.pixelSize: Style.font.caption
@@ -1659,6 +1733,20 @@ Panel {
           text: strings.t("settings.strap")
           foreground: root.foreground
           fontFamily: root.fontFamily
+        }
+
+        SettingRow {
+          label: root.confirmedAddress !== "" ? strings.t("settings.confirmed").arg(root.confirmedAddress) : strings.t("settings.noConfirmed")
+
+          Button {
+            visible: root.confirmedAddress !== ""
+            text: strings.t("action.forgetStrap")
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            fontSize: Style.font.bodySmall
+            bordered: true
+            onClicked: root.forgetStrap()
+          }
         }
 
         SettingRow {
