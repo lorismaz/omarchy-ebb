@@ -14,7 +14,7 @@ depends=('bluez' 'dbus' 'glibc' 'libgcc' 'libsecret')
 makedepends=('cargo')
 options=('!lto')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('SKIP')
+sha256sums=('b02da0367dec95131bb664e07a9d5cee59f3d9548409a2dc29c2835f28da5342')
 
 _dir() { echo "$srcdir/omarchy-helio-strap-$pkgver/helper"; }
 
