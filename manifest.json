@@ -17,7 +17,7 @@
     "description": "Steps and move reminders during the day; from two hours before bedtime the panel becomes a sleep coach, and a moon in the bar turns red past bedtime.",
     "category": "Status",
     "allowMultiple": false,
-    "defaultSection": "centerBegin",
+    "defaultSection": "right",
     "defaults": {
       "deviceName": "Helio",
       "maxHeartRate": 190,
