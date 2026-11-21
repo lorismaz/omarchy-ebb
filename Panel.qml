@@ -151,7 +151,7 @@ Panel {
   function setupSteps() {
     root.close()
     Quickshell.execDetached(["omarchy-launch-tui", "--app-id=org.omarchy.helio-strap-setup",
-                             "helio-strap", "setup", root.deviceFilter])
+                             root.helperPath, "setup", root.deviceFilter])
   }
 
   function openBluetooth() {
@@ -182,23 +182,29 @@ Panel {
   implicitHeight: button.implicitHeight
 
   // ---------- Helper process ----------
-  // helio-strap ships as its own package (the AUR's helio-strap), like
-  // Omarchy's other native helpers; until it is installed the panel offers to.
+  // helio-strap is found on PATH (a package or a local build) or in the
+  // plugin's own data folder, where install-helper.sh puts the release binary.
   property bool helperMissing: false
-  readonly property var helperCommand: ["helio-strap", "stream", root.deviceFilter, root.autoReconnect ? "1" : "0"]
+  property string helperPath: ""
+  readonly property string installScript: Qt.resolvedUrl("install-helper.sh").toString().replace(/^file:\/\//, "")
+  readonly property var helperCommand: [root.helperPath, "stream", root.deviceFilter, root.autoReconnect ? "1" : "0"]
   onHelperCommandChanged: if (helperProc.running) helperProc.running = false   // restartTimer relaunches it
 
   function installHelper() {
     root.close()
-    Quickshell.execDetached(["omarchy-launch-floating-terminal-with-presentation", "omarchy-pkg-aur-add helio-strap"])
+    // The launcher runs its argument through bash: quote the script path.
+    var quoted = "'" + root.installScript.replace(/'/g, "'\\''") + "'"
+    Quickshell.execDetached(["omarchy-launch-floating-terminal-with-presentation", "bash " + quoted])
   }
 
   Process {
     id: helperCheck
-    command: ["sh", "-c", "command -v helio-strap"]
+    command: ["sh", "-c", "command -v helio-strap || { f=\"${XDG_DATA_HOME:-$HOME/.local/share}/helio-strap/bin/helio-strap\"; [ -x \"$f\" ] && echo \"$f\"; }"]
     running: true
+    stdout: SplitParser { onRead: function(line) { if (root.helperPath === "") root.helperPath = String(line).trim() } }
+    onStarted: root.helperPath = ""
     onExited: function(exitCode) {
-      root.helperMissing = exitCode !== 0
+      root.helperMissing = root.helperPath === ""
       if (root.helperMissing) restartTimer.restart()
       else helperProc.running = true
     }

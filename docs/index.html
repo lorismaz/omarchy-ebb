@@ -146,7 +146,7 @@
 
   <h2>Install</h2>
   <pre><code>omarchy plugin add https://github.com/lorismaz/omarchy-helio-strap --enable</code></pre>
-  <p>The panel talks to the strap through a small Bluetooth helper written in Rust, packaged on the AUR as <code>helio-strap</code>. The first time you open the panel it offers <strong>Install helper</strong>, which runs <code>omarchy pkg aur add helio-strap</code>.</p>
+  <p>The panel talks to the strap through a small Bluetooth helper written in Rust. The first time you open the panel it offers <strong>Install helper</strong>, which downloads the helper for your machine from the project's GitHub release, checks it against a pinned SHA-256 and installs it to <code>~/.local/share/helio-strap/bin/</code>.</p>
   <p>Pair the strap in Omarchy's Bluetooth panel. Heart rate, zones and battery work straight away.</p>
 
   <h2>Steps and sleep</h2>

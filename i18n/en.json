@@ -142,6 +142,6 @@
   "settings.moveReminders": "Move reminders",
   "settings.moveEvery": "Remind after sitting (min)",
   "settings.moveSteps": "Steps that count as moving",
-  "helper.missing": "The Bluetooth helper isn't installed yet. It's a small package from the AUR (helio-strap).",
+  "helper.missing": "The Bluetooth helper isn't installed yet. Install helper downloads it from this plugin's GitHub release and checks it before installing.",
   "action.installHelper": "Install helper"
 }

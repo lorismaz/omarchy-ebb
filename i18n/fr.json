@@ -142,6 +142,6 @@
   "settings.moveReminders": "Rappels pour bouger",
   "settings.moveEvery": "Rappel après assis (min)",
   "settings.moveSteps": "Pas comptés comme mouvement",
-  "helper.missing": "L'assistant Bluetooth n'est pas encore installé. C'est un petit paquet de l'AUR (helio-strap).",
+  "helper.missing": "L'assistant Bluetooth n'est pas encore installé. Installer l'assistant le télécharge depuis la release GitHub du plugin et le vérifie avant de l'installer.",
   "action.installHelper": "Installer l'assistant"
 }

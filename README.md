@@ -31,13 +31,17 @@ The plugin follows your day:
 omarchy plugin add https://github.com/lorismaz/omarchy-helio-strap --enable
 ```
 
-The panel talks to the strap through a small Bluetooth helper, `helio-strap`, which
-ships as its own package (written in Rust, built from this repo's `helper/`). The
-first time you open the panel it offers **Install helper**, which runs:
+The panel talks to the strap through a small Bluetooth helper, `helio-strap`, written
+in Rust (source in `helper/`). The first time you open the panel it offers
+**Install helper**, which runs [`install-helper.sh`](install-helper.sh): it downloads
+the helper for your machine (x86_64 or aarch64) from this repository's
+[GitHub release](https://github.com/lorismaz/omarchy-helio-strap/releases), checks its
+SHA-256 against the value pinned in the script, and installs it to
+`~/.local/share/helio-strap/bin/`. The release binaries are built by
+[GitHub Actions](.github/workflows/release.yml) from the tagged source.
 
-```bash
-omarchy pkg aur add helio-strap
-```
+A `helio-strap` already on your `PATH` (for example one you built yourself) is used
+instead. An AUR package is ready in `packaging/aur/` for when AUR registration reopens.
 
 Then pair the strap in Omarchy's Bluetooth panel. Heart rate, zones and battery work straight away.
 
@@ -112,14 +116,14 @@ the zones) · strap name filter · reconnect automatically · zone next to the h
 
 ## Requirements
 
-The `helio-strap` package (above), BlueZ, and a Secret Service keyring
+The `helio-strap` helper (above), BlueZ, and a Secret Service keyring
 (`secret-tool`, from libsecret) for steps.
 
 ## Privacy
 
 Everything stays on your machine. The only network traffic is the optional Zepp login
-in Set up steps, which talks to Zepp's servers over HTTPS, and installing the helper
-from the AUR.
+in Set up steps, which talks to Zepp's servers over HTTPS, and downloading the helper
+from GitHub when you click Install helper.
 
 ## Tests
 
@@ -161,7 +165,7 @@ omarchy-shell lorismaz.helio-strap doneForTonight  # mute reminders until mornin
 
 ```bash
 omarchy plugin remove lorismaz.helio-strap
-omarchy pkg drop helio-strap                       # the Bluetooth helper
+rm -rf ~/.local/share/helio-strap                  # the Bluetooth helper
 secret-tool clear service omarchy-helio-strap      # forget the saved auth key
 rm -rf ~/.local/state/helio-strap                  # forget sleep history and screen time
 ```
