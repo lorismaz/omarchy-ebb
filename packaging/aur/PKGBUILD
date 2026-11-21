@@ -4,7 +4,7 @@
 # `makepkg --printsrcinfo > .SRCINFO`, then push this folder to the AUR.
 
 pkgname=helio-strap
-pkgver=1.0.0
+pkgver=1.1.0
 pkgrel=1
 pkgdesc="Bluetooth helper for the Helio Strap Omarchy plugin: heart rate, steps and sleep from an Amazfit Helio Strap"
 arch=('x86_64' 'aarch64')
@@ -14,7 +14,7 @@ depends=('bluez' 'dbus' 'glibc' 'libgcc' 'libsecret')
 makedepends=('cargo')
 options=('!lto')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('b02da0367dec95131bb664e07a9d5cee59f3d9548409a2dc29c2835f28da5342')
+sha256sums=('848a1f5c3ae56340965dff26122102873deba22bdd71407fe5bfa63f9b81c120')
 
 _dir() { echo "$srcdir/omarchy-helio-strap-$pkgver/helper"; }
 

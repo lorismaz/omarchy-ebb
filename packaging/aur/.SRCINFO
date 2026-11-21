@@ -1,6 +1,6 @@
 pkgbase = helio-strap
 	pkgdesc = Bluetooth helper for the Helio Strap Omarchy plugin: heart rate, steps and sleep from an Amazfit Helio Strap
-	pkgver = 1.0.0
+	pkgver = 1.1.0
 	pkgrel = 1
 	url = https://github.com/lorismaz/omarchy-helio-strap
 	arch = x86_64
@@ -13,7 +13,7 @@ pkgbase = helio-strap
 	depends = libgcc
 	depends = libsecret
 	options = !lto
-	source = helio-strap-1.0.0.tar.gz::https://github.com/lorismaz/omarchy-helio-strap/archive/refs/tags/v1.0.0.tar.gz
-	sha256sums = b02da0367dec95131bb664e07a9d5cee59f3d9548409a2dc29c2835f28da5342
+	source = helio-strap-1.1.0.tar.gz::https://github.com/lorismaz/omarchy-helio-strap/archive/refs/tags/v1.1.0.tar.gz
+	sha256sums = 848a1f5c3ae56340965dff26122102873deba22bdd71407fe5bfa63f9b81c120
 
 pkgname = helio-strap
