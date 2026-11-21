@@ -485,7 +485,7 @@ Panel {
 
   readonly property bool moveReminders: setting("moveReminders", true) !== false
   readonly property int moveEvery: Model.normalizeMoveEvery(setting("moveEvery", 50))
-  readonly property int moveSteps: Model.normalizeMoveSteps(setting("moveSteps", 100))
+  readonly property int moveSteps: Model.normalizeMoveSteps(setting("moveSteps", 10))
   property var stepSamples: []
   property double lastMovedAt: Date.now()
   property bool movedSeen: false
@@ -1654,7 +1654,7 @@ Panel {
 
           NumberField {
             value: root.moveSteps
-            from: 30
+            from: 10
             to: 1000
             stepSize: 10
             foreground: root.foreground

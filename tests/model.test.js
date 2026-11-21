@@ -298,9 +298,15 @@ smp = M.recordSteps(smp, 1040, T + 60000)
 assert.strictEqual(M.movedRecently(smp, 100), false)
 smp = M.recordSteps(smp, 1110, T + 4 * 60000)
 assert.strictEqual(M.movedRecently(smp, 100), true)                       // 110 steps in 4 min
-smp = M.recordSteps(smp, 1115, T + 20 * 60000)                             // old readings drop out
-assert.strictEqual(smp.length, 1); assert.strictEqual(M.movedRecently(smp, 100), false)
+smp = M.recordSteps(smp, 1115, T + 20 * 60000)                             // old readings drop out, newest stays as baseline
+assert.strictEqual(smp.length, 2); assert.strictEqual(M.movedRecently(smp, 10), false)
 assert.strictEqual(M.recordSteps(smp, 12, T + 21 * 60000).length, 1)      // counter reset at midnight
+// Out of range all afternoon: the steps arrive as one jump on reconnect and count.
+smp = M.recordSteps([], 3000, T)
+smp = M.recordSteps(smp, 6500, T + 4 * 3600000)
+assert.strictEqual(smp.length, 2); assert.strictEqual(M.movedRecently(smp, 10), true)
+smp = M.recordSteps(smp, 6502, T + 5 * 3600000)                            // an hour later, sitting again
+assert.strictEqual(M.movedRecently(smp, 10), false)
 const mv = { lastMovedAt: T, nudges: 0, lastNudgeAt: 0 }
 const on = { everyMin: 50, active: true, allowed: true }
 assert.strictEqual(M.moveAction(T + 49 * 60000, mv, on), "none")
@@ -312,6 +318,9 @@ assert.strictEqual(M.moveAction(T + 70 * 60000, nudged, on), "none")       // 25
 assert.strictEqual(M.moveAction(T + 76 * 60000, nudged, on), "nudge")
 assert.strictEqual(M.moveAction(T + 200 * 60000, { ...nudged, nudges: 2 }, on), "none")   // then silence
 assert.strictEqual(M.normalizeMoveEvery(5), 50); assert.strictEqual(M.normalizeMoveSteps(200), 200)
+assert.strictEqual(M.normalizeMoveSteps(undefined), 10); assert.strictEqual(M.normalizeMoveSteps(3), 10)
+smp = M.recordSteps([], 2000, T); smp = M.recordSteps(smp, 2012, T + 60000)
+assert.strictEqual(M.movedRecently(smp, M.normalizeMoveSteps(undefined)), true)          // a dozen steps ends sitting
 // Hourly bars
 const todayKey = M.localDateKey(T)
 const hrs = Array(24).fill(0); hrs[9] = 2000; hrs[13] = 500

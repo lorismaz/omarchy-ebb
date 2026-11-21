@@ -662,10 +662,15 @@ var MOVE_WINDOW_MS = 10 * 60000
 var MOVE_MAX_NUDGES = 2
 var MOVE_NUDGE_GAP_MS = 25 * 60000
 
-// Keep (time, steps) readings from the last MOVE_WINDOW; a lower count means
-// the strap's counter reset (midnight), so start over.
+// Keep (time, steps) readings from the last MOVE_WINDOW, plus the newest one
+// before it as a baseline: when the strap was out of range (a walk away from
+// the desk), the steps taken meanwhile show up as one jump on reconnect, and
+// they still count. A lower count means the strap's counter reset (midnight),
+// so start over.
 function recordSteps(samples, steps, nowMs) {
   var kept = samples.filter(function(s) { return nowMs - s.t <= MOVE_WINDOW_MS })
+  var older = samples.filter(function(s) { return nowMs - s.t > MOVE_WINDOW_MS })
+  if (older.length) kept.unshift(older[older.length - 1])
   if (kept.length && steps < kept[kept.length - 1].steps) kept = []
   kept.push({ t: nowMs, steps: steps })
   return kept
@@ -699,7 +704,7 @@ function moveAction(nowMs, s, o) {
 }
 
 function normalizeMoveEvery(v) { var n = clampInt(v, 20, 180); return n === null ? 50 : n }
-function normalizeMoveSteps(v) { var n = clampInt(v, 30, 1000); return n === null ? 100 : n }
+function normalizeMoveSteps(v) { var n = clampInt(v, 10, 1000); return n === null ? 10 : n }
 
 // Today's bars: the strap's per-hour counts, plus live steps not in them yet
 // added to the current hour.

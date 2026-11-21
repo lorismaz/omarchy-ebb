@@ -13,7 +13,7 @@ The plugin follows your day:
   (from the strap's own minute data), how long you've been sitting, and in the
   morning a one-line recap of the night.
 - **Move reminders with proof:** while you're at the computer, after 50 minutes
-  without a move (about 100 steps within 10 minutes) you get a nudge and the walker
+  without a move (about 10 steps within 10 minutes) you get a nudge and the walker
   turns highlighted with "Move". Only walking clears it: the strap has to count the
   steps. At most two nudges per sitting stretch, none in your last hour before bed.
 - **From two hours before bedtime it becomes a sleep coach.** The panel opens on
