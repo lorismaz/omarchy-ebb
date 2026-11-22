@@ -109,6 +109,15 @@ Panel {
         root.moveNudges = 0
         root.lastNudgeAt = 0
       }
+    } else if (ev.type === "minutes") {
+      // Walks the live readings missed (strap out of range, or no key yet).
+      var moved = Math.min(Model.lastMoveInMinutes(ev.from, ev.steps, root.moveSteps), Date.now())
+      if (moved > root.lastMovedAt) {
+        root.lastMovedAt = moved
+        root.movedSeen = true
+        root.moveNudges = 0
+        root.lastNudgeAt = 0
+      }
     } else if (ev.type === "hourly") {
       root.hourly = { day: ev.day, hours: ev.hours }
     } else if (ev.type === "latency") {
@@ -195,7 +204,7 @@ Panel {
   property string helperPath: ""
   property string helperVersion: ""
   // Oldest helper that follows only the confirmed strap and takes notifications on stdin.
-  readonly property string helperRequired: "1.1.0"
+  readonly property string helperRequired: "1.2.0"
   readonly property string installScript: Qt.resolvedUrl("install-helper.sh").toString().replace(/^file:\/\//, "")
   readonly property var helperCommand: [root.helperPath, "stream", root.deviceFilter, root.autoReconnect ? "1" : "0", root.confirmedAddress]
   onHelperCommandChanged: if (helperProc.running) helperProc.running = false   // restartTimer relaunches it

@@ -6,10 +6,11 @@
 //! {"t":"battery","level":66}   {"t":"info","firmware":"3.27.0.1"}
 //! {"t":"steps-status","state":"authenticating|ok|no-key|bad-key|unsupported|error"}
 //! {"t":"steps",…} {"t":"sleep",…} {"t":"latency",…} {"t":"hourly",…}
+//! {"t":"minutes","from":<epoch s of the first minute>,"steps":[…per minute…]}
 
 use std::collections::HashMap;
 use std::io::Write;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use bluer::gatt::WriteOp;
 use bluer::gatt::remote::{Characteristic, CharacteristicWriteRequest};
@@ -28,6 +29,8 @@ const STEPS_EVERY: Duration = Duration::from_secs(60);
 const KEY_CHECK_EVERY: Duration = Duration::from_secs(15);
 const AUTH_TIMEOUT: Duration = Duration::from_secs(30);
 const ERROR_PAUSE: Duration = Duration::from_secs(120);
+/// A refusal can be a passing one (the strap busy with the phone): try the same key again after this.
+const REFUSED_PAUSE: Duration = Duration::from_secs(120);
 const MAX_NAME: usize = 64;
 
 fn std_uuid(short: u16) -> Uuid {
@@ -224,7 +227,21 @@ pub async fn run(filter: String, reconnect: bool, address: Option<bluer::Address
 /// Zepp state that outlives one connection.
 #[derive(Default)]
 struct Zepp {
-    rejected: Option<[u8; 16]>,
+    rejected: Option<Refusal>,
+}
+
+struct Refusal {
+    key: [u8; 16],
+    when: Instant,
+    /// `keyring::saved_at()` at the time: a later save means setup ran again.
+    saved: Option<SystemTime>,
+}
+
+impl Refusal {
+    /// Still too soon to offer this key again?
+    fn holds(&self, key: &[u8; 16], now: Instant, saved: Option<SystemTime>) -> bool {
+        self.key == *key && now.duration_since(self.when) < REFUSED_PAUSE && saved == self.saved
+    }
 }
 
 enum Ev {
@@ -292,8 +309,8 @@ impl Link {
             }
         }
         if let Some(s) = &self.session {
-            if s.phase == Phase::KeyRefused {
-                zepp.rejected = Some(s.auth_key);
+            if s.phase == Phase::KeyRefused && zepp.rejected.as_ref().is_none_or(|r| r.when < s.began) {
+                zepp.rejected = Some(Refusal { key: s.auth_key, when: Instant::now(), saved: keyring::saved_at() });
             }
         }
     }
@@ -326,7 +343,7 @@ impl Link {
             out.event(json!({"t": "steps-status", "state": "no-key"}));
             return;
         };
-        if zepp.rejected == Some(key) {
+        if zepp.rejected.as_ref().is_some_and(|r| r.holds(&key, now, keyring::saved_at())) {
             out.event(json!({"t": "steps-status", "state": "bad-key"}));
             return;
         }
@@ -420,6 +437,18 @@ async fn connected(dev: &Device, i: &Info, out: &mut Printer, zepp: &mut Zepp) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn refusal_lifts_after_a_pause_or_a_new_save() {
+        let t0 = Instant::now();
+        let saved = Some(SystemTime::UNIX_EPOCH);
+        let r = Refusal { key: [1; 16], when: t0, saved };
+        assert!(r.holds(&[1; 16], t0 + Duration::from_secs(60), saved));
+        assert!(!r.holds(&[2; 16], t0, saved), "a different key is tried at once");
+        assert!(!r.holds(&[1; 16], t0 + REFUSED_PAUSE, saved), "the same key is retried later");
+        let resaved = Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1));
+        assert!(!r.holds(&[1; 16], t0, resaved), "setup saving it again lifts the refusal");
+    }
 
     #[test]
     fn uuids() {

@@ -4,7 +4,7 @@ const path = require("path")
 const assert = require("assert")
 
 const src = fs.readFileSync(path.join(__dirname, "..", "Model.js"), "utf8").replace(".pragma library", "")
-const M = new Function(src + "; return { parseLine, zoneFor, zoneBounds, normalizeMaxHr, emptyStats, addReading, average, pushPoint, rmssd, pushRR, formatDuration, batteryIcon, normalizeStepGoal, normalizeBarMode, goalProgress, parseClock, normalizeBedtime, formatClock, dayKey, minutesPastBedtime, freshDay, loadDay, withChanges, hoursMinutes, parseSleepNeed, normalizeWake, normalizeFallAsleep, bedtimeFor, sleepIfBedNow, SLEEP_NEEDS, parseNight, lastNight, mergeNights, parseNightList, debtBalance, circularStats, regularity, planNight, eveningAction, morningAction, localDateKey, scheduleFromDays, wakeTarget, targetMorning, WAKE_KEYS, applyLatency, typicalLatency, recordSteps, movedRecently, moveAction, normalizeMoveEvery, normalizeMoveSteps, hourBars, autoView, clockSet, rebaseUnsetClock, minutesUntilBedtime, normalizeAddress, versionLess, MAX_POINTS, MAX_NAME };")()
+const M = new Function(src + "; return { parseLine, zoneFor, zoneBounds, normalizeMaxHr, emptyStats, addReading, average, pushPoint, rmssd, pushRR, formatDuration, batteryIcon, normalizeStepGoal, normalizeBarMode, goalProgress, parseClock, normalizeBedtime, formatClock, dayKey, minutesPastBedtime, freshDay, loadDay, withChanges, hoursMinutes, parseSleepNeed, normalizeWake, normalizeFallAsleep, bedtimeFor, sleepIfBedNow, SLEEP_NEEDS, parseNight, lastNight, mergeNights, parseNightList, debtBalance, circularStats, regularity, planNight, eveningAction, morningAction, localDateKey, scheduleFromDays, wakeTarget, targetMorning, WAKE_KEYS, applyLatency, typicalLatency, recordSteps, movedRecently, lastMoveInMinutes, moveAction, normalizeMoveEvery, normalizeMoveSteps, hourBars, autoView, clockSet, rebaseUnsetClock, minutesUntilBedtime, normalizeAddress, versionLess, MAX_POINTS, MAX_NAME };")()
 
 // Heart rate lines
 let ev = M.parseLine('{"t":"hr","bpm":72,"contact":null,"rr":[812,830]}')
@@ -332,6 +332,16 @@ const hev = M.parseLine(JSON.stringify({ t: "hourly", day: todayKey, hours: hrs 
 assert.strictEqual(hev.hours[9], 2000)
 assert.strictEqual(M.parseLine(JSON.stringify({ t: "hourly", day: "nope", hours: hrs })), null)
 assert.strictEqual(M.parseLine(JSON.stringify({ t: "hourly", day: todayKey, hours: [1] })), null)
+// Per-minute log from the strap
+const mev = M.parseLine(JSON.stringify({ t: "minutes", from: 1800000000, steps: [0, 3, "x", 999, -1] }))
+assert.deepStrictEqual(mev, { type: "minutes", from: 1800000000000, steps: [0, 3, 0, 0, 0] })
+assert.strictEqual(M.parseLine(JSON.stringify({ t: "minutes", from: 5, steps: [] })), null)
+assert.strictEqual(M.parseLine(JSON.stringify({ t: "minutes", from: 1800000000, steps: "x" })), null)
+const walk = Array(240).fill(0); for (let i = 60; i < 180; i++) walk[i] = 80   // walked from minute 60 to 180
+assert.strictEqual(M.lastMoveInMinutes(T, walk, 10), T + 180 * 60000)
+assert.strictEqual(M.lastMoveInMinutes(T, Array(240).fill(0), 10), 0)
+const trickle = Array(60).fill(0); for (let i = 0; i < 60; i += 15) trickle[i] = 4  // 4 steps every 15 min: not a move
+assert.strictEqual(M.lastMoveInMinutes(T, trickle, 10), 0)
 // Auto view
 assert.strictEqual(M.autoView(-180), "move")
 assert.strictEqual(M.autoView(-120), "sleep")

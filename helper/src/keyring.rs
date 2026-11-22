@@ -2,7 +2,9 @@
 //! libsecret's `secret-tool`. The key goes over stdin, never on a command line.
 
 use std::io::Write;
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::time::SystemTime;
 
 const SERVICE: &str = "omarchy-helio-strap";
 
@@ -39,7 +41,29 @@ pub fn store(address: &str, key: &[u8; 16]) -> std::io::Result<()> {
     let hex: String = key.iter().map(|b| format!("{b:02x}")).collect();
     child.stdin.take().expect("piped stdin").write_all(hex.as_bytes())?;
     let status = child.wait()?;
-    if status.success() { Ok(()) } else { Err(std::io::Error::other(format!("secret-tool exited with {status}"))) }
+    if !status.success() {
+        return Err(std::io::Error::other(format!("secret-tool exited with {status}")));
+    }
+    mark_saved();
+    Ok(())
+}
+
+/// Touched on every save, so a running `stream` retries a key it saw refused
+/// even when setup saved the very same key again.
+fn marker() -> Option<PathBuf> {
+    let dir = std::env::var_os("XDG_RUNTIME_DIR").or_else(|| std::env::var_os("XDG_CACHE_HOME"))?;
+    Some(PathBuf::from(dir).join("helio-strap-key-saved"))
+}
+
+fn mark_saved() {
+    if let Some(p) = marker() {
+        let _ = std::fs::write(p, b""); // best effort: stream also retries on a timer
+    }
+}
+
+/// When setup last saved a key, if known.
+pub fn saved_at() -> Option<SystemTime> {
+    std::fs::metadata(marker()?).and_then(|m| m.modified()).ok()
 }
 
 #[cfg(test)]

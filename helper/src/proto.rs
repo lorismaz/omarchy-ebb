@@ -340,6 +340,14 @@ pub fn steps_per_hour(first_minute: i64, data: &[u8], day_start: i64) -> [u32; 2
     hours
 }
 
+/// Steps per minute from `since` on: (epoch of the first minute kept, counts).
+/// Lets the panel see walks taken while the strap was out of range.
+pub fn recent_minutes(first_minute: i64, data: &[u8], since: i64) -> (i64, Vec<u32>) {
+    let skip = ((since - first_minute).max(0) + 59) / 60;
+    let steps = data.chunks_exact(MINUTE).skip(skip as usize).map(|m| m[2] as u32).collect();
+    (first_minute + 60 * skip, steps)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -483,5 +491,14 @@ mod tests {
         let h = steps_per_hour(day - 30 * 60, &data, day);
         assert_eq!((h[0], h[1], h[2], h.iter().sum::<u32>()), (300, 90, 0, 390));
         assert_eq!(steps_per_hour(day, &[], day), [0; 24]);
+    }
+
+    #[test]
+    fn recent() {
+        let data = [repeat(minute(112, 0, 1), 3), repeat(minute(112, 0, 7), 2)].concat();
+        assert_eq!(recent_minutes(1000, &data, 1180), (1180, vec![7, 7]));
+        assert_eq!(recent_minutes(1000, &data, 1150), (1180, vec![7, 7]), "a partial minute is left out");
+        assert_eq!(recent_minutes(1000, &data, 0), (1000, vec![1, 1, 1, 7, 7]));
+        assert_eq!(recent_minutes(1000, &data, 9999).1, Vec::<u32>::new());
     }
 }

@@ -18,6 +18,8 @@ const SLEEP_EVERY: Duration = Duration::from_secs(3600);
 const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(180);
 const SLEEP_DAYS_BACK: i64 = 8;
 const BEFORE_ONSET: i64 = 3 * 3600;
+/// How far back the per-minute steps sent to the panel go (seconds).
+const RECENT_MINUTES: i64 = 6 * 3600;
 
 pub enum Out {
     /// frame for the strap (characteristic 0016)
@@ -282,6 +284,11 @@ impl Session {
                     }
                     let hours = proto::steps_per_hour(from, &t.data.data, day.timestamp());
                     out.push(Out::Event(json!({"t": "hourly", "day": day.format("%Y-%m-%d").to_string(), "hours": hours})));
+                    let since = day.timestamp().max(Local::now().timestamp() - RECENT_MINUTES);
+                    let (first, steps) = proto::recent_minutes(from, &t.data.data, since);
+                    if !steps.is_empty() {
+                        out.push(Out::Event(json!({"t": "minutes", "from": first, "steps": steps})));
+                    }
                 }
                 self.waiting_onsets.clear();
             }

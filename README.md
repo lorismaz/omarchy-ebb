@@ -15,7 +15,8 @@ The plugin follows your day:
 - **Move reminders with proof:** while you're at the computer, after 50 minutes
   without a move (about 10 steps within 10 minutes) you get a nudge and the walker
   turns highlighted with "Move". Only walking clears it: the strap has to count the
-  steps. At most two nudges per sitting stretch, none in your last hour before bed.
+  steps, live or later from its minute log (a walk out of Bluetooth range counts once
+  it syncs). At most two nudges per sitting stretch, none in your last hour before bed.
 - **From two hours before bedtime it becomes a sleep coach.** The panel opens on
   **Sleep**: bedtime and a countdown, what going to bed now gets you, the plan,
   last night, sleep debt and regularity. An hour before bedtime the bar shows a
@@ -66,7 +67,8 @@ Good to know:
 - **This uses Zepp's private API**, the way the Zepp app does. It may stop working if
   Zepp changes it; heart rate keeps working regardless.
 - **Re-pairing the strap in the Zepp app changes its key.** The panel tells you when the
-  saved key is rejected; run Set up steps again.
+  saved key is rejected; run Set up steps again. A one-off refusal (the strap busy with
+  the phone) clears by itself: the same key is tried again after two minutes.
 
 ## Sleep coach
 

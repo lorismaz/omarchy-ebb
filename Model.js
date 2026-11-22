@@ -111,6 +111,16 @@ function parseLine(line) {
     }
     return { type: "hourly", day: obj.day, hours: hours }
   }
+  if (obj.t === "minutes") {
+    var from = Number(obj.from)
+    if (!(from > 1577836800 && from < 4102444800) || !Array.isArray(obj.steps)) return null
+    var per = []
+    for (var mm = 0; mm < obj.steps.length && mm < 1440; mm++) {
+      var c = clampInt(obj.steps[mm], 0, 255)
+      per.push(c === null ? 0 : c)
+    }
+    return { type: "minutes", from: from * 1000, steps: per }
+  }
   if (obj.t === "latency") {
     if (!Array.isArray(obj.nights)) return null
     var list = []
@@ -681,6 +691,21 @@ function movedRecently(samples, moveSteps) {
   var lo = samples[0].steps
   for (var i = 1; i < samples.length; i++) lo = Math.min(lo, samples[i].steps)
   return samples[samples.length - 1].steps - lo >= moveSteps
+}
+
+// The strap's own per-minute log (steps: counts from fromMs, one a minute):
+// the end of the last minute that closes a move (moveSteps within
+// MOVE_WINDOW), or 0. It covers time the strap was out of range.
+function lastMoveInMinutes(fromMs, steps, moveSteps) {
+  var span = MOVE_WINDOW_MS / 60000
+  var sum = 0
+  var last = 0
+  for (var i = 0; i < steps.length; i++) {
+    sum += steps[i]
+    if (i >= span) sum -= steps[i - span]
+    if (steps[i] > 0 && sum >= moveSteps) last = fromMs + (i + 1) * 60000
+  }
+  return last
 }
 
 // Machines without a kept hardware clock (Apple Silicon) boot at 1970 until NTP
