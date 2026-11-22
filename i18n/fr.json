@@ -153,5 +153,12 @@
   "action.forgetStrap": "Oublier",
   "tooltip.unconfirmed": "Helio Strap : confirmez votre bracelet dans le panneau",
   "helper.outdated": "L'assistant Bluetooth (version %1) doit être mis à jour pour cette version du plugin.",
-  "action.updateHelper": "Mettre à jour l'assistant"
+  "action.updateHelper": "Mettre à jour l'assistant",
+  "settings.about": "À propos",
+  "settings.version": "Helio Strap %1 · licence MIT",
+  "action.intro": "Lancer l'intro",
+  "settings.tab.sleep": "Sommeil",
+  "settings.tab.activity": "Activité",
+  "settings.tab.strap": "Bracelet",
+  "settings.tab.about": "À propos"
 }

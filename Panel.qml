@@ -8,6 +8,7 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "Model.js" as Model
+import "intro"
 
 // Helio Strap: live heart rate from an Amazfit Helio Strap (or any paired
 // Bluetooth LE heart rate strap) in the bar. the helio-strap helper follows the strap over
@@ -16,6 +17,7 @@ import "Model.js" as Model
 //
 //   omarchy-shell lorismaz.helio-strap toggle
 //   omarchy-shell lorismaz.helio-strap resetSession
+//   omarchy-shell lorismaz.helio-strap intro          (play or stop the intro)
 Panel {
   id: root
   moduleName: "lorismaz.helio-strap"
@@ -149,6 +151,35 @@ Panel {
 
   // ---------- In-panel settings ----------
   property bool showSettings: false
+  property string settingsTab: "sleep"
+  readonly property string pluginVersion: "1.2.0"   // keep in step with manifest.json
+
+  // ---------- Intro (Settings > About) ----------
+  property bool introOn: false
+  function playIntro() { root.close(); root.introOn = true }
+
+  Loader {
+    active: root.introOn
+    sourceComponent: PanelWindow {
+      anchors { top: true; bottom: true; left: true; right: true }
+      exclusionMode: ExclusionMode.Ignore
+      WlrLayershell.layer: WlrLayer.Overlay
+      WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+      WlrLayershell.namespace: "helio-strap-intro"
+      color: Commons.Color.background
+      Cracktro {
+        anchors.fill: parent
+        version: root.pluginVersion
+        background: Commons.Color.background
+        foreground: Commons.Color.foreground
+        accent: Commons.Color.accent
+        muted: Commons.Color.muted
+        urgent: Commons.Color.urgent
+        fontFamily: root.fontFamily
+        onFinished: root.introOn = false
+      }
+    }
+  }
   onOpenedChanged: if (!opened) { showSettings = false; viewChoice = "" }
 
   // Same path as `omarchy bar set`: persist into shell.json through the bar.
@@ -191,6 +222,7 @@ Panel {
     function testMorning() { root.sendMorning() }
     function openSettings() { root.open(); root.showSettings = true }
     function showView(name: string) { root.open(); root.showSettings = false; root.viewChoice = name === "sleep" ? "sleep" : "move" }
+    function intro() { if (root.introOn) root.introOn = false; else root.playIntro() }
   }
 
   implicitWidth: button.implicitWidth
@@ -1500,298 +1532,344 @@ Panel {
           }
         }
 
-        // -- Sleep
-        PanelSectionHeader {
-          text: strings.t("settings.sleep")
+        // -- Tabs: the page is too tall for one column
+        ButtonGroup {
+          width: parent.width
+          value: root.settingsTab
+          options: [
+            { value: "sleep", label: strings.t("settings.tab.sleep") },
+            { value: "activity", label: strings.t("settings.tab.activity") },
+            { value: "strap", label: strings.t("settings.tab.strap") },
+            { value: "about", label: strings.t("settings.tab.about") }
+          ]
           foreground: root.foreground
           fontFamily: root.fontFamily
+          fontSize: Style.font.bodySmall
+          onChanged: function(v) { root.settingsTab = v }
         }
 
-        PlainText {
+        Column {
           width: parent.width
-          wrapMode: Text.Wrap
-          color: root.dim
-          font.pixelSize: Style.font.caption
-          text: strings.t("settings.wakeHint")
-        }
+          spacing: Style.space(10)
+          visible: root.settingsTab === "sleep"
 
-        // Monday first; Model.WAKE_KEYS is indexed Sunday..Saturday.
-        Repeater {
-          model: [1, 2, 3, 4, 5, 6, 0]
+          // -- Sleep
 
-          SettingRow {
-            id: wakeRow
-            required property int modelData
-            readonly property string key: Model.WAKE_KEYS[modelData]
-            readonly property string raw: root.wakeValue(key)
-            readonly property bool free: /^(free|libre|off|-)$/i.test(raw.trim())
-            readonly property string shown: Model.parseClock(raw) !== null ? Model.formatClock(Model.parseClock(raw)) : "07:00"
-            label: Qt.locale(Commons.I18n.formatLocale).dayName(modelData, Locale.LongFormat)
+          PlainText {
+            width: parent.width
+            wrapMode: Text.Wrap
+            color: root.dim
+            font.pixelSize: Style.font.caption
+            text: strings.t("settings.wakeHint")
+          }
 
-            TextField {
-              id: wakeField
-              width: Style.space(72)
-              enabled: !wakeRow.free
-              horizontalAlignment: TextInput.AlignHCenter
-              text: wakeRow.free ? "" : wakeRow.shown
-              placeholderText: wakeRow.free ? strings.t("settings.free") : "07:00"
-              foreground: root.foreground
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.bodySmall
-              maximumLength: 5
-              onEditingFinished: {
-                var t = Model.parseClock(text)
-                if (t === null) { text = wakeRow.shown; return }
-                if (Model.formatClock(t) !== wakeRow.raw) root.setSetting(wakeRow.key, Model.formatClock(t))
+          // Monday first; Model.WAKE_KEYS is indexed Sunday..Saturday.
+          Repeater {
+            model: [1, 2, 3, 4, 5, 6, 0]
+
+            SettingRow {
+              id: wakeRow
+              required property int modelData
+              readonly property string key: Model.WAKE_KEYS[modelData]
+              readonly property string raw: root.wakeValue(key)
+              readonly property bool free: /^(free|libre|off|-)$/i.test(raw.trim())
+              readonly property string shown: Model.parseClock(raw) !== null ? Model.formatClock(Model.parseClock(raw)) : "07:00"
+              label: Qt.locale(Commons.I18n.formatLocale).dayName(modelData, Locale.LongFormat)
+
+              TextField {
+                id: wakeField
+                width: Style.space(72)
+                enabled: !wakeRow.free
+                horizontalAlignment: TextInput.AlignHCenter
+                text: wakeRow.free ? "" : wakeRow.shown
+                placeholderText: wakeRow.free ? strings.t("settings.free") : "07:00"
+                foreground: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                maximumLength: 5
+                onEditingFinished: {
+                  var t = Model.parseClock(text)
+                  if (t === null) { text = wakeRow.shown; return }
+                  if (Model.formatClock(t) !== wakeRow.raw) root.setSetting(wakeRow.key, Model.formatClock(t))
+                }
+              }
+
+              PlainText {
+                anchors.verticalCenter: parent.verticalCenter
+                text: strings.t("settings.free")
+                color: root.dim
+                font.pixelSize: Style.font.caption
+              }
+
+              ToggleSwitch {
+                anchors.verticalCenter: parent.verticalCenter
+                checked: wakeRow.free
+                foreground: root.foreground
+                onToggled: root.setSetting(wakeRow.key, wakeRow.free ? wakeRow.shown : "free")
               }
             }
+          }
+
+          SettingRow {
+            label: strings.t("settings.sleepNeed")
+
+            Dropdown {
+              width: Style.space(110)
+              showLabel: false
+              value: String(root.setting("sleepNeed", "8h"))
+              options: Model.SLEEP_NEEDS
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              onChanged: function(v) { root.setSetting("sleepNeed", v) }
+            }
+          }
+
+          SettingRow {
+            label: strings.t("settings.fallAsleep")
 
             PlainText {
               anchors.verticalCenter: parent.verticalCenter
-              text: strings.t("settings.free")
+              text: strings.t("settings.auto")
               color: root.dim
               font.pixelSize: Style.font.caption
             }
 
             ToggleSwitch {
               anchors.verticalCenter: parent.verticalCenter
-              checked: wakeRow.free
+              checked: root.fallAsleepAuto
               foreground: root.foreground
-              onToggled: root.setSetting(wakeRow.key, wakeRow.free ? wakeRow.shown : "free")
+              onToggled: root.setSetting("fallAsleepAuto", !root.fallAsleepAuto)
+            }
+
+            NumberField {
+              value: root.fallAsleepManual
+              enabled: !root.fallAsleepMeasured
+              opacity: enabled ? 1 : 0.5
+              from: 0
+              to: 90
+              stepSize: 5
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              onModified: function(v) { root.setSetting("fallAsleep", v) }
+            }
+          }
+
+          PlainText {
+            visible: root.fallAsleepAuto
+            width: parent.width
+            wrapMode: Text.Wrap
+            color: root.dim
+            font.pixelSize: Style.font.caption
+            text: root.fallAsleepMeasured
+              ? strings.t("settings.latencyMeasured").arg(root.duration(root.latencyInfo.minutes)).arg(root.latencyInfo.nights)
+              : strings.t("settings.latencyLearning").arg(root.latencyInfo.nights).arg(5).arg(root.duration(root.fallAsleepManual))
+          }
+
+          SettingRow {
+            label: strings.t("settings.reminders")
+
+            ToggleSwitch {
+              checked: root.lateAlerts
+              foreground: root.foreground
+              onToggled: root.setSetting("lateAlerts", !root.lateAlerts)
             }
           }
         }
 
-        SettingRow {
-          label: strings.t("settings.sleepNeed")
+        Column {
+          width: parent.width
+          spacing: Style.space(10)
+          visible: root.settingsTab === "activity"
 
-          Dropdown {
-            width: Style.space(110)
-            showLabel: false
-            value: String(root.setting("sleepNeed", "8h"))
-            options: Model.SLEEP_NEEDS
+          // -- Movement
+          PanelSectionHeader {
+            text: strings.t("settings.movement")
             foreground: root.foreground
             fontFamily: root.fontFamily
-            onChanged: function(v) { root.setSetting("sleepNeed", v) }
           }
-        }
 
-        SettingRow {
-          label: strings.t("settings.fallAsleep")
+          SettingRow {
+            label: strings.t("settings.moveReminders")
+
+            ToggleSwitch {
+              checked: root.moveReminders
+              foreground: root.foreground
+              onToggled: root.setSetting("moveReminders", !root.moveReminders)
+            }
+          }
+
+          SettingRow {
+            label: strings.t("settings.moveEvery")
+
+            NumberField {
+              value: root.moveEvery
+              from: 20
+              to: 180
+              stepSize: 5
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              onModified: function(v) { root.setSetting("moveEvery", v) }
+            }
+          }
+
+          SettingRow {
+            label: strings.t("settings.moveSteps")
+
+            NumberField {
+              value: root.moveSteps
+              from: 10
+              to: 1000
+              stepSize: 10
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              onModified: function(v) { root.setSetting("moveSteps", v) }
+            }
+          }
+
+          // -- Activity and bar
+          PanelSectionHeader {
+            text: strings.t("settings.activity")
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+          }
+
+          SettingRow {
+            label: strings.t("settings.stepGoal")
+
+            NumberField {
+              value: root.stepGoal
+              from: 500
+              to: 100000
+              stepSize: 500
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              onModified: function(v) { root.setSetting("stepGoal", v) }
+            }
+          }
+
+          SettingRow {
+            label: strings.t("settings.maxHr")
+
+            NumberField {
+              value: root.maxHr
+              from: 100
+              to: 230
+              stepSize: 1
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              onModified: function(v) { root.setSetting("maxHeartRate", v) }
+            }
+          }
 
           PlainText {
-            anchors.verticalCenter: parent.verticalCenter
-            text: strings.t("settings.auto")
-            color: root.dim
-            font.pixelSize: Style.font.caption
+            width: parent.width
+            text: strings.t("settings.barShows")
+            font.pixelSize: Style.font.bodySmall
           }
 
-          ToggleSwitch {
-            anchors.verticalCenter: parent.verticalCenter
-            checked: root.fallAsleepAuto
-            foreground: root.foreground
-            onToggled: root.setSetting("fallAsleepAuto", !root.fallAsleepAuto)
-          }
-
-          NumberField {
-            value: root.fallAsleepManual
-            enabled: !root.fallAsleepMeasured
-            opacity: enabled ? 1 : 0.5
-            from: 0
-            to: 90
-            stepSize: 5
+          ButtonGroup {
+            width: parent.width
+            value: String(root.setting("barShows", "Heart rate and steps"))
+            options: [
+              { value: "Heart rate and steps", label: strings.t("settings.bar.both") },
+              { value: "Heart rate", label: strings.t("settings.bar.hr") },
+              { value: "Steps", label: strings.t("settings.bar.steps") }
+            ]
             foreground: root.foreground
             fontFamily: root.fontFamily
-            onModified: function(v) { root.setSetting("fallAsleep", v) }
+            fontSize: Style.font.bodySmall
+            onChanged: function(v) { root.setSetting("barShows", v) }
+          }
+
+          SettingRow {
+            label: strings.t("settings.zoneInBar")
+
+            ToggleSwitch {
+              checked: root.showZoneInBar
+              foreground: root.foreground
+              onToggled: root.setSetting("showZoneInBar", !root.showZoneInBar)
+            }
           }
         }
 
-        PlainText {
-          visible: root.fallAsleepAuto
+        Column {
           width: parent.width
-          wrapMode: Text.Wrap
-          color: root.dim
-          font.pixelSize: Style.font.caption
-          text: root.fallAsleepMeasured
-            ? strings.t("settings.latencyMeasured").arg(root.duration(root.latencyInfo.minutes)).arg(root.latencyInfo.nights)
-            : strings.t("settings.latencyLearning").arg(root.latencyInfo.nights).arg(5).arg(root.duration(root.fallAsleepManual))
-        }
+          spacing: Style.space(10)
+          visible: root.settingsTab === "strap"
 
-        SettingRow {
-          label: strings.t("settings.reminders")
+          // -- Strap
 
-          ToggleSwitch {
-            checked: root.lateAlerts
-            foreground: root.foreground
-            onToggled: root.setSetting("lateAlerts", !root.lateAlerts)
+          SettingRow {
+            label: root.confirmedAddress !== "" ? strings.t("settings.confirmed").arg(root.confirmedAddress) : strings.t("settings.noConfirmed")
+
+            Button {
+              visible: root.confirmedAddress !== ""
+              text: strings.t("action.forgetStrap")
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              fontSize: Style.font.bodySmall
+              bordered: true
+              onClicked: root.forgetStrap()
+            }
           }
-        }
 
-        // -- Movement
-        PanelSectionHeader {
-          text: strings.t("settings.movement")
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-        }
+          SettingRow {
+            label: strings.t("settings.deviceName")
 
-        SettingRow {
-          label: strings.t("settings.moveReminders")
-
-          ToggleSwitch {
-            checked: root.moveReminders
-            foreground: root.foreground
-            onToggled: root.setSetting("moveReminders", !root.moveReminders)
+            TextField {
+              width: Style.space(140)
+              text: root.deviceFilter
+              placeholderText: strings.t("settings.anyStrap")
+              foreground: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              maximumLength: 64
+              onEditingFinished: if (text.trim() !== root.deviceFilter) root.setSetting("deviceName", text.trim())
+            }
           }
-        }
 
-        SettingRow {
-          label: strings.t("settings.moveEvery")
+          SettingRow {
+            label: strings.t("settings.reconnect")
 
-          NumberField {
-            value: root.moveEvery
-            from: 20
-            to: 180
-            stepSize: 5
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            onModified: function(v) { root.setSetting("moveEvery", v) }
+            ToggleSwitch {
+              checked: root.autoReconnect
+              foreground: root.foreground
+              onToggled: root.setSetting("autoReconnect", !root.autoReconnect)
+            }
           }
-        }
-
-        SettingRow {
-          label: strings.t("settings.moveSteps")
-
-          NumberField {
-            value: root.moveSteps
-            from: 10
-            to: 1000
-            stepSize: 10
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            onModified: function(v) { root.setSetting("moveSteps", v) }
-          }
-        }
-
-        // -- Activity and bar
-        PanelSectionHeader {
-          text: strings.t("settings.activity")
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-        }
-
-        SettingRow {
-          label: strings.t("settings.stepGoal")
-
-          NumberField {
-            value: root.stepGoal
-            from: 500
-            to: 100000
-            stepSize: 500
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            onModified: function(v) { root.setSetting("stepGoal", v) }
-          }
-        }
-
-        SettingRow {
-          label: strings.t("settings.maxHr")
-
-          NumberField {
-            value: root.maxHr
-            from: 100
-            to: 230
-            stepSize: 1
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            onModified: function(v) { root.setSetting("maxHeartRate", v) }
-          }
-        }
-
-        PlainText {
-          width: parent.width
-          text: strings.t("settings.barShows")
-          font.pixelSize: Style.font.bodySmall
-        }
-
-        ButtonGroup {
-          width: parent.width
-          value: String(root.setting("barShows", "Heart rate and steps"))
-          options: [
-            { value: "Heart rate and steps", label: strings.t("settings.bar.both") },
-            { value: "Heart rate", label: strings.t("settings.bar.hr") },
-            { value: "Steps", label: strings.t("settings.bar.steps") }
-          ]
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-          fontSize: Style.font.bodySmall
-          onChanged: function(v) { root.setSetting("barShows", v) }
-        }
-
-        SettingRow {
-          label: strings.t("settings.zoneInBar")
-
-          ToggleSwitch {
-            checked: root.showZoneInBar
-            foreground: root.foreground
-            onToggled: root.setSetting("showZoneInBar", !root.showZoneInBar)
-          }
-        }
-
-        // -- Strap
-        PanelSectionHeader {
-          text: strings.t("settings.strap")
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-        }
-
-        SettingRow {
-          label: root.confirmedAddress !== "" ? strings.t("settings.confirmed").arg(root.confirmedAddress) : strings.t("settings.noConfirmed")
 
           Button {
-            visible: root.confirmedAddress !== ""
-            text: strings.t("action.forgetStrap")
+            width: parent.width
+            iconText: "󰌆"
+            text: strings.t("action.setup")
             foreground: root.foreground
             fontFamily: root.fontFamily
             fontSize: Style.font.bodySmall
             bordered: true
-            onClicked: root.forgetStrap()
+            onClicked: root.setupSteps()
           }
         }
 
-        SettingRow {
-          label: strings.t("settings.deviceName")
-
-          TextField {
-            width: Style.space(140)
-            text: root.deviceFilter
-            placeholderText: strings.t("settings.anyStrap")
-            foreground: root.foreground
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.bodySmall
-            maximumLength: 64
-            onEditingFinished: if (text.trim() !== root.deviceFilter) root.setSetting("deviceName", text.trim())
-          }
-        }
-
-        SettingRow {
-          label: strings.t("settings.reconnect")
-
-          ToggleSwitch {
-            checked: root.autoReconnect
-            foreground: root.foreground
-            onToggled: root.setSetting("autoReconnect", !root.autoReconnect)
-          }
-        }
-
-        Button {
+        Column {
           width: parent.width
-          iconText: "󰌆"
-          text: strings.t("action.setup")
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-          fontSize: Style.font.bodySmall
-          bordered: true
-          onClicked: root.setupSteps()
+          spacing: Style.space(10)
+          visible: root.settingsTab === "about"
+
+          // -- About
+
+          SettingRow {
+            label: strings.t("settings.version").arg(root.pluginVersion)
+
+            Button {
+              iconText: "󰎈"
+              text: strings.t("action.intro")
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              fontSize: Style.font.bodySmall
+              bordered: true
+              onClicked: root.playIntro()
+            }
+          }
         }
       }
     }
