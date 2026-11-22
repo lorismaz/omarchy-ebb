@@ -318,7 +318,7 @@ pub fn nights(data: &[u8]) -> Vec<Night> {
 
 // ---- Minute samples (§2.7) ----
 
-const MINUTE: usize = 8;
+pub const MINUTE: usize = 8;
 const NOT_WORN: u8 = 115;
 const CHARGING: u8 = 118;
 const STILL_UP_TO: u8 = 40;

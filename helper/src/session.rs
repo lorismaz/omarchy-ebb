@@ -20,6 +20,13 @@ const SLEEP_DAYS_BACK: i64 = 8;
 const BEFORE_ONSET: i64 = 3 * 3600;
 /// How far back the per-minute steps sent to the panel go (seconds).
 const RECENT_MINUTES: i64 = 6 * 3600;
+/// Readings stamped further ahead of this computer's clock are dropped.
+const AHEAD: i64 = 600;
+/// Before this the computer's clock is not set yet (no RTC: it boots at 1970).
+const CLOCK_SANE: i64 = 1_577_836_800;
+/// Downloads failing in a row before asking for a new connection: the strap's
+/// history service sometimes stalls on a link that otherwise works.
+const FAILURES_BEFORE_RECONNECT: u8 = 2;
 
 pub enum Out {
     /// frame for the strap (characteristic 0016)
@@ -54,6 +61,9 @@ struct Transfer {
 pub struct Session {
     pub auth_key: [u8; 16],
     pub phase: Phase,
+    /// Downloads keep failing: the caller should drop and rebuild the link.
+    pub wants_reconnect: bool,
+    failures: u8,
     pub began: Instant,
     /// The proof is sent: a later challenge is someone else's handshake.
     answered: bool,
@@ -86,6 +96,8 @@ impl Session {
             phase: Phase::Authenticating,
             began: now,
             answered: false,
+            wants_reconnect: false,
+            failures: 0,
             mtu,
             curve,
             private,
@@ -213,8 +225,8 @@ impl Session {
     }
 
     fn maybe_fetch_sleep(&mut self, out: &mut Vec<Out>, now: Instant, local: DateTime<FixedOffset>) {
-        if self.fetch_encrypted.is_none() {
-            return;
+        if self.fetch_encrypted.is_none() || local.timestamp() < CLOCK_SANE {
+            return; // without the real time, readings wait on the strap
         }
         if let Some(t) = &self.transfer {
             if now.duration_since(t.began) < DOWNLOAD_TIMEOUT {
@@ -222,6 +234,7 @@ impl Session {
             }
             crate::debug("download timed out");
             self.transfer = None;
+            self.failed();
         }
         if self.last_sleep.is_some_and(|t| now.duration_since(t) < SLEEP_EVERY) {
             return;
@@ -263,13 +276,27 @@ impl Session {
                 crate::debug(&format!("download refused: command {command:02x} status {status:02x}"));
                 self.transfer = None;
                 self.last_sleep = Some(now);
+                self.failed();
             }
             FetchReply::Acked => {}
         }
     }
 
+    fn failed(&mut self) {
+        self.failures = self.failures.saturating_add(1);
+        if self.failures >= FAILURES_BEFORE_RECONNECT {
+            crate::debug("downloads keep failing: reconnecting");
+            self.wants_reconnect = true;
+        }
+    }
+
     fn finish(&mut self, out: &mut Vec<Out>, ok: bool, now: Instant) {
         let Some(t) = self.transfer.take() else { return };
+        if ok {
+            self.failures = 0;
+        } else {
+            self.failed();
+        }
         let enc = self.fetch_encrypted.unwrap_or(false);
         self.send(out, proto::EP_FETCH, proto::FETCH_DONE_KEEP, enc);
         match t.what {
@@ -281,8 +308,12 @@ impl Session {
                 }
             }
             What::Minutes => {
+                let now_epoch = Local::now().timestamp();
                 if let (true, Some(from), Some(day)) = (ok, t.from, self.day_start) {
-                    let found = proto::latencies(from, &t.data.data, &self.waiting_onsets);
+                    // Minutes stamped ahead of the clock are not kept.
+                    let upto = ((now_epoch + AHEAD - from).max(0) / 60) as usize * proto::MINUTE;
+                    let data = &t.data.data[..upto.min(t.data.data.len())];
+                    let found = proto::latencies(from, data, &self.waiting_onsets);
                     self.measured.extend(found.iter().map(|l| l.onset));
                     if !found.is_empty() {
                         let list: Vec<Value> = found
@@ -291,10 +322,10 @@ impl Session {
                             .collect();
                         out.push(Out::Event(json!({"t": "latency", "nights": list})));
                     }
-                    let hours = proto::steps_per_hour(from, &t.data.data, day.timestamp());
+                    let hours = proto::steps_per_hour(from, data, day.timestamp());
                     out.push(Out::Event(json!({"t": "hourly", "day": day.format("%Y-%m-%d").to_string(), "hours": hours})));
-                    let since = day.timestamp().max(Local::now().timestamp() - RECENT_MINUTES);
-                    let (first, steps) = proto::recent_minutes(from, &t.data.data, since);
+                    let since = day.timestamp().max(now_epoch - RECENT_MINUTES);
+                    let (first, steps) = proto::recent_minutes(from, data, since);
                     if !steps.is_empty() {
                         out.push(Out::Event(json!({"t": "minutes", "from": first, "steps": steps})));
                     }
@@ -307,7 +338,11 @@ impl Session {
     /// Report the nights, then fetch minute data from midnight (steps per hour)
     /// or from before any night not measured yet (time to fall asleep).
     fn after_sleep(&mut self, out: &mut Vec<Out>, data: &[u8], now: Instant, local: DateTime<FixedOffset>) {
-        let all = proto::nights(data);
+        let ahead = local.timestamp() + AHEAD;
+        let all: Vec<proto::Night> = proto::nights(data)
+            .into_iter()
+            .filter(|n| n.end <= ahead && (n.written as i64) <= ahead)
+            .collect();
         let recent = &all[all.len().saturating_sub(14)..];
         let list: Vec<Value> = recent
             .iter()
@@ -461,6 +496,35 @@ mod tests {
         let again = feed(&mut s, strap.say(proto::EP_AUTH, &challenge, false), now);
         assert!(strap.read(&again).is_empty(), "no second proof");
         assert_eq!(s.phase, Phase::Authenticating);
+    }
+
+    #[test]
+    fn stalled_downloads_ask_for_a_reconnect() {
+        let key = [0x11; 16];
+        let (mut s, mut strap, _) = handshake(key, key);
+        s.can_fetch = true;
+        let t0 = Instant::now();
+        let frames = strap.say(proto::EP_SERVICES, &[4, 2, 0, 0x16, 0, 0, 0x4b, 0, 0], false);
+        feed(&mut s, frames, t0); // asks for sleep at once
+        assert!(s.transfer.is_some());
+        s.tick(t0 + DOWNLOAD_TIMEOUT); // first one timed out: try again
+        assert!(!s.wants_reconnect);
+        s.tick(t0 + DOWNLOAD_TIMEOUT * 2);
+        assert!(s.wants_reconnect);
+    }
+
+    #[test]
+    fn no_downloads_before_the_clock_is_set() {
+        let key = [0x11; 16];
+        let (mut s, mut strap, _) = handshake(key, key);
+        s.can_fetch = true;
+        let frames = strap.say(proto::EP_SERVICES, &[4, 2, 0, 0x16, 0, 0, 0x4b, 0, 0], false);
+        feed(&mut s, frames, Instant::now());
+        s.transfer = None;
+        let mut out = Vec::new();
+        let unset = FixedOffset::east_opt(0).unwrap().timestamp_opt(0, 0).unwrap();
+        s.maybe_fetch_sleep(&mut out, Instant::now(), unset);
+        assert!(s.transfer.is_none() && out.is_empty());
     }
 
     #[test]

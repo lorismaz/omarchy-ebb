@@ -228,7 +228,7 @@ pub async fn run(filter: String, reconnect: bool, address: Option<bluer::Address
             continue;
         };
         if i.connected && i.resolved {
-            connected(&dev, &i, &mut out, &mut zepp).await;
+            connected(&dev, &i, &mut out, &mut zepp, reconnect).await;
             continue;
         }
         if i.connected {
@@ -403,7 +403,7 @@ impl Link {
     }
 }
 
-async fn connected(dev: &Device, i: &Info, out: &mut Printer, zepp: &mut Zepp) {
+async fn connected(dev: &Device, i: &Info, out: &mut Printer, zepp: &mut Zepp, reconnect: bool) {
     out.status("connected", Some(i));
     let (tx, mut rx) = mpsc::unbounded_channel();
     let mut link = Link { chars: HashMap::new(), tasks: Vec::new(), tx, zepp_subscribed: false, session: None };
@@ -470,6 +470,11 @@ async fn connected(dev: &Device, i: &Info, out: &mut Printer, zepp: &mut Zepp) {
                 let outs = s.tick(Instant::now());
                 link.apply(outs, out, zepp).await;
             },
+        }
+        // A stalled history service clears on a new connection; the outer loop reconnects.
+        if reconnect && link.session.as_ref().is_some_and(|s| s.wants_reconnect) {
+            let _ = dev.disconnect().await;
+            return;
         }
     }
 }

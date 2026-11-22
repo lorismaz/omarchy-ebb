@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "lorismaz.helio-strap",
   "name": "Helio Strap",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "author": "lorismaz",
   "license": "MIT",
   "description": "Movement by day and a sleep coach by night, from an Amazfit Helio Strap: steps, move reminders, sleep, sleep debt and bedtime reminders in the Omarchy bar.",

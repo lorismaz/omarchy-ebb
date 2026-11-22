@@ -74,7 +74,11 @@ Good to know:
 
 With steps set up, the plugin also reads your sleep sessions from the strap (it
 always answers "keep on device", so the Zepp app still syncs the same nights) and
-keeps up to 30 nights locally in `~/.local/state/helio-strap/`.
+keeps up to 30 nights locally in `~/.local/state/helio-strap/`. Nothing is
+downloaded while the computer's clock is not set yet, and readings stamped more
+than ten minutes ahead of it are dropped. When downloads fail twice in a row,
+the helper reconnects: the strap's history service sometimes stalls on a link
+that otherwise works.
 
 - **Wake schedule:** one wake-up setting per weekday, each a time like `07:00` or
   `free`. Each evening plans for the next morning. A free morning aims for at most
@@ -89,9 +93,11 @@ keeps up to 30 nights locally in `~/.local/state/helio-strap/`.
   of the last 14 nights once 5 are measured, and your manual value until then. With 2h or more of debt it moves earlier by debt ÷ 4 (max 60 min,
   in 15-min steps), never more than an hour before your usual bedtime.
 - **Sleep debt** is a running balance in real hours, night by night:
-  `D = max(0, 0.93·D + max(need − asleep, −2h))`. Nights without data only decay;
-  it shows "calibrating" until 5 of the last 14 nights are recorded. Levels:
-  on track < 2h, moderate 2–5h, high > 5h.
+  `D = max(0, 0.93·D + max(need − asleep, −2h))`, where asleep is the night plus
+  the day's naps (the strap's own nap list; today's show under the night). Naps
+  count for the debt only: bedtime, regularity and time to fall asleep follow
+  nights. Nights without data only decay; it shows "calibrating" until 5 of the
+  last 14 nights are recorded. Levels: on track < 2h, moderate 2–5h, high > 5h.
 - **Regularity:** spread of bedtimes over 14 nights (flagged above ±60 min) and
   weekend shift of mid-sleep (flagged at 1h or more).
 - **Notifications, only while you're at the computer:** wind-down an hour before
