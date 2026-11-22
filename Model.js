@@ -396,6 +396,8 @@ function parseNight(o) {
   }
   var score = clampInt(o.score, 0, 100)
   out.score = score === null ? 0 : score
+  // A nap from the strap's nap list: counts as sleep, but is not a night.
+  if (o.nap === true) out.nap = true
   // Measured minutes from lying down to sleep onset; bounded = only a minimum.
   var lat = o.latency === undefined || o.latency === null ? null : clampInt(o.latency, 0, 120)
   if (lat !== null) { out.latency = lat; out.latencyBounded = o.latencyBounded === true }
@@ -468,6 +470,17 @@ function parseNightList(text) {
   return out
 }
 
+// Nights only, without the naps: bedtime, regularity and latency follow these.
+function mainNights(nights) {
+  return nights.filter(function(n) { return !n.nap })
+}
+
+// Naps that ended today, oldest first.
+function napsToday(nights, nowMs) {
+  var today = localDateKey(nowMs)
+  return nights.filter(function(n) { return n.nap && n.end * 1000 <= nowMs && localDateKey(n.end * 1000) === today })
+}
+
 function recentNights(nights, nowMs, days) {
   return nights.filter(function(n) { return n.end * 1000 <= nowMs && nowMs - n.end * 1000 < days * DAY_MS })
 }
@@ -486,7 +499,7 @@ function debtBalance(nights, need, nowMs) {
     if (!(k in byDay)) { byDay[k] = 0; keys.push(k) }
     byDay[k] += n.asleep
   }
-  var counted = recentNights(nights, nowMs, WINDOW_DAYS).length
+  var counted = recentNights(mainNights(nights), nowMs, WINDOW_DAYS).length
   var result = { minutes: 0, level: "low", calibrating: counted < CALIBRATE_NIGHTS,
                  nights: counted, trend: "steady", series: [] }
   if (keys.length === 0) return result

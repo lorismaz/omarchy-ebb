@@ -276,6 +276,7 @@ impl Session {
             What::Sleep => {
                 self.last_sleep = Some(now);
                 if ok {
+                    crate::debug(&format!("sleep data {}", hex(&t.data.data)));
                     self.after_sleep(out, &t.data.data, now, Local::now().fixed_offset());
                 }
             }
@@ -311,8 +312,12 @@ impl Session {
         let list: Vec<Value> = recent
             .iter()
             .map(|n| {
-                json!({"start": n.start, "end": n.end, "asleep": n.asleep(), "deep": n.deep,
-                       "light": n.light, "rem": n.rem, "awake": n.awake, "score": n.score})
+                let mut v = json!({"start": n.start, "end": n.end, "asleep": n.asleep(), "deep": n.deep,
+                                   "light": n.light, "rem": n.rem, "awake": n.awake, "score": n.score});
+                if n.nap.is_some() {
+                    v["nap"] = true.into();
+                }
+                v
             })
             .collect();
         out.push(Out::Event(json!({"t": "sleep", "nights": list})));
@@ -320,7 +325,7 @@ impl Session {
         let now_epoch = local.timestamp();
         self.waiting_onsets = recent
             .iter()
-            .filter(|n| n.end <= now_epoch && !self.measured.contains(&n.start))
+            .filter(|n| n.nap.is_none() && n.end <= now_epoch && !self.measured.contains(&n.start))
             .map(|n| n.start)
             .collect();
         let midnight = local_midnight(local);

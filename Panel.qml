@@ -55,11 +55,13 @@ Panel {
   property int calories: -1
   property string stepsState: ""
   // Local sleep history (the strap only keeps ~8 nights), merged with each fetch.
-  property var nights: []
-  readonly property var lastNight: Model.lastNight(nights, now)
+  property var nights: []                   // nights and naps; naps count only towards the debt
+  readonly property var mainNights: Model.mainNights(nights)
+  readonly property var naps: Model.napsToday(nights, now)
+  readonly property var lastNight: Model.lastNight(mainNights, now)
   readonly property var debt: Model.debtBalance(nights, sleepNeed, now)
-  readonly property var plan: Model.planNight(wakeTime, sleepNeed, fallAsleep, nights, debt.calibrating ? 0 : debt.minutes, now)
-  readonly property var regular: Model.regularity(nights, now)
+  readonly property var plan: Model.planNight(wakeTime, sleepNeed, fallAsleep, mainNights, debt.calibrating ? 0 : debt.minutes, now)
+  readonly property var regular: Model.regularity(mainNights, now)
 
   // Session
   property var stats: Model.emptyStats()
@@ -328,7 +330,7 @@ Panel {
   // Time to fall asleep: measured from the strap's minute data (Auto), or the manual value.
   readonly property int fallAsleepManual: Model.normalizeFallAsleep(setting("fallAsleep", 15))
   readonly property bool fallAsleepAuto: setting("fallAsleepAuto", true) !== false
-  readonly property var latencyInfo: Model.typicalLatency(nights, now)
+  readonly property var latencyInfo: Model.typicalLatency(mainNights, now)
   readonly property bool fallAsleepMeasured: fallAsleepAuto && latencyInfo.minutes !== null
   readonly property int fallAsleep: fallAsleepMeasured ? latencyInfo.minutes : fallAsleepManual
   readonly property int bedtime: plan.bedtime
@@ -1046,6 +1048,17 @@ Panel {
               text: root.lastNight ? strings.t("sleep.stages").arg(root.duration(root.lastNight.deep))
                       .arg(root.duration(root.lastNight.light)).arg(root.duration(root.lastNight.rem))
                       .arg(root.duration(root.lastNight.awake)) : ""
+            }
+
+            PlainText {
+              visible: root.naps.length > 0
+              width: parent.width
+              wrapMode: Text.Wrap
+              color: root.dim
+              font.pixelSize: Style.font.bodySmall
+              text: root.naps.map(function(n) {
+                return strings.t("sleep.nap").arg(root.duration(n.asleep)).arg(root.clock(n.start))
+              }).join("  ·  ")
             }
 
             PlainText {

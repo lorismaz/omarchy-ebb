@@ -232,12 +232,47 @@ pub struct Night {
     pub deep: u16,
     pub awake: u16,
     pub score: u8,
+    /// A nap from the report's nap list: `minutes` asleep, no stages.
+    pub nap: Option<u16>,
 }
 
 impl Night {
     pub fn asleep(&self) -> u32 {
-        self.rem as u32 + self.light as u32 + self.deep as u32
+        match self.nap {
+            Some(m) => m as u32,
+            None => self.rem as u32 + self.light as u32 + self.deep as u32,
+        }
     }
+}
+
+const MAX_NAPS: usize = (0x54 - 0x18) / 6;
+
+/// The day's naps: count at 0x17, then (start, end, minutes) u16 triples from
+/// 0x18, in minutes from the midnight before the report's day; `end` is the
+/// last minute (on a strap: 16:11..17:56 holds 106 minutes).
+fn naps(r: &[u8]) -> Vec<Night> {
+    let (Some(written), Some(midnight)) = (u32_at(r, 0x00), u32_at(r, 0x04)) else { return Vec::new() };
+    let previous_midnight = midnight as i64 - 24 * 3600;
+    let count = (r[0x17] as usize).min(MAX_NAPS);
+    r[0x18..0x18 + 6 * count]
+        .chunks_exact(6)
+        .filter_map(|n| {
+            let from = u16::from_le_bytes([n[0], n[1]]) as i64;
+            let to = u16::from_le_bytes([n[2], n[3]]) as i64;
+            let minutes = u16::from_le_bytes([n[4], n[5]]);
+            (to > from && to - from <= 6 * 60 && minutes > 0 && minutes as i64 <= to - from + 1).then(|| Night {
+                written,
+                start: previous_midnight + from * 60,
+                end: previous_midnight + (to + 1) * 60, // `to` is the last minute, as for stages
+                rem: 0,
+                light: 0,
+                deep: 0,
+                awake: 0,
+                score: 0,
+                nap: Some(minutes),
+            })
+        })
+        .collect()
 }
 
 fn night(r: &[u8]) -> Option<Night> {
@@ -263,12 +298,14 @@ fn night(r: &[u8]) -> Option<Night> {
         deep: u16_at(r, 0x24E).unwrap_or(0),
         awake: u16_at(r, 0x250).unwrap_or(0),
         score: r[0x16],
+        nap: None,
     })
 }
 
-/// Nights in time order; for overlapping reports the last-written one wins.
+/// Nights and naps in time order; when two overlap the last-written one wins
+/// (the strap may report a sleep as a nap, then as the night once a longer one follows).
 pub fn nights(data: &[u8]) -> Vec<Night> {
-    let mut all: Vec<Night> = data.chunks_exact(SLEEP_RECORD).filter_map(night).collect();
+    let mut all: Vec<Night> = data.chunks_exact(SLEEP_RECORD).flat_map(|r| night(r).into_iter().chain(naps(r))).collect();
     all.sort_by_key(|n| n.written);
     let mut kept: Vec<Night> = Vec::new();
     for n in all {
@@ -441,6 +478,27 @@ mod tests {
             r[0x24A + 2 * i..0x24C + 2 * i].copy_from_slice(&t.to_le_bytes());
         }
         r
+    }
+
+    #[test]
+    fn naps_from_the_report() {
+        let mid: u32 = 1_795_215_600;
+        let base = mid as i64 - 86_400;
+        let mut r = record(mid + 30_000, mid, &[(1320, 1379, 4), (1380, 1679, 5)], [0, 60, 300, 0]);
+        r[0x17] = 3;
+        // 14:10-14:40, 25 min asleep; a broken one; an impossible length
+        for (i, (s, e, m)) in [(2290u16, 2320u16, 25u16), (2400, 2390, 5), (2500, 2510, 40)].iter().enumerate() {
+            let at = 0x18 + 6 * i;
+            r[at..at + 2].copy_from_slice(&s.to_le_bytes());
+            r[at + 2..at + 4].copy_from_slice(&e.to_le_bytes());
+            r[at + 4..at + 6].copy_from_slice(&m.to_le_bytes());
+        }
+        let n = nights(&r);
+        assert_eq!(n.len(), 2);
+        assert_eq!(n[0].nap, None);
+        assert_eq!((n[1].nap, n[1].start, n[1].end, n[1].asleep()), (Some(25), base + 2290 * 60, base + 2321 * 60, 25));
+        r[0x17] = 200; // a count past the table is capped, not read beyond it
+        assert!(nights(&r).iter().filter(|n| n.nap.is_some()).count() <= MAX_NAPS);
     }
 
     #[test]

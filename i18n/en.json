@@ -160,5 +160,6 @@
   "settings.tab.sleep": "Sleep",
   "settings.tab.activity": "Activity",
   "settings.tab.strap": "Strap",
-  "settings.tab.about": "About"
+  "settings.tab.about": "About",
+  "sleep.nap": "Nap %1 at %2, counted in your sleep debt"
 }

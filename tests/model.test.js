@@ -4,7 +4,7 @@ const path = require("path")
 const assert = require("assert")
 
 const src = fs.readFileSync(path.join(__dirname, "..", "Model.js"), "utf8").replace(".pragma library", "")
-const M = new Function(src + "; return { parseLine, zoneFor, zoneBounds, normalizeMaxHr, emptyStats, addReading, average, pushPoint, rmssd, pushRR, formatDuration, batteryIcon, normalizeStepGoal, normalizeBarMode, goalProgress, parseClock, normalizeBedtime, formatClock, dayKey, minutesPastBedtime, freshDay, loadDay, withChanges, hoursMinutes, parseSleepNeed, normalizeWake, normalizeFallAsleep, bedtimeFor, sleepIfBedNow, SLEEP_NEEDS, parseNight, lastNight, mergeNights, parseNightList, debtBalance, circularStats, regularity, planNight, eveningAction, morningAction, localDateKey, scheduleFromDays, wakeTarget, targetMorning, WAKE_KEYS, applyLatency, typicalLatency, recordSteps, movedRecently, lastMoveInMinutes, moveAction, normalizeMoveEvery, normalizeMoveSteps, hourBars, autoView, clockSet, rebaseUnsetClock, minutesUntilBedtime, normalizeAddress, versionLess, MAX_POINTS, MAX_NAME };")()
+const M = new Function(src + "; return { parseLine, zoneFor, zoneBounds, normalizeMaxHr, emptyStats, addReading, average, pushPoint, rmssd, pushRR, formatDuration, batteryIcon, normalizeStepGoal, normalizeBarMode, goalProgress, parseClock, normalizeBedtime, formatClock, dayKey, minutesPastBedtime, freshDay, loadDay, withChanges, hoursMinutes, parseSleepNeed, normalizeWake, normalizeFallAsleep, bedtimeFor, sleepIfBedNow, SLEEP_NEEDS, parseNight, lastNight, mergeNights, parseNightList, debtBalance, circularStats, regularity, planNight, eveningAction, morningAction, localDateKey, scheduleFromDays, wakeTarget, targetMorning, WAKE_KEYS, applyLatency, typicalLatency, recordSteps, movedRecently, lastMoveInMinutes, mainNights, napsToday, moveAction, normalizeMoveEvery, normalizeMoveSteps, hourBars, autoView, clockSet, rebaseUnsetClock, minutesUntilBedtime, normalizeAddress, versionLess, MAX_POINTS, MAX_NAME };")()
 
 // Heart rate lines
 let ev = M.parseLine('{"t":"hr","bpm":72,"contact":null,"rr":[812,830]}')
@@ -176,6 +176,19 @@ assert.ok(Math.abs(after - Math.max(0, 0.93 * before - 120)) <= 1, [after, befor
 const gap = M.debtBalance([night(5, 23, 0, 300)], 480, NOW)
 assert.strictEqual(gap.minutes, Math.round(180 * Math.pow(0.93, 5)))
 assert.strictEqual(gap.calibrating, true)
+// naps: a 60-minute nap today pays back an hour of today's shortfall, but is not a night
+const napStart = new Date(2026, 10, 20, 14, 0).getTime() / 1000
+const nap = M.parseNight({ start: napStart, end: napStart + 3600, asleep: 60, deep: 0, light: 0, rem: 0, awake: 0, score: 0, nap: true })
+assert.strictEqual(nap.nap, true)
+assert.strictEqual(M.parseNight({ ...nap, nap: "yes" }).nap, undefined)
+const withNap = ns.concat([nap])
+// 420 asleep + 60 of nap = the need: the day only decays the debt
+assert.ok(Math.abs(M.debtBalance(withNap, 480, NOW).minutes - 0.93 * before) <= 1)
+assert.strictEqual(M.debtBalance(withNap, 480, NOW).nights, dbt.nights)        // calibration counts nights only
+assert.strictEqual(M.mainNights(withNap).length, ns.length)
+assert.deepStrictEqual(M.napsToday(withNap, NOW), [nap])
+assert.deepStrictEqual(M.napsToday(withNap, NOW + 86400000), [])
+assert.strictEqual(M.lastNight(M.mainNights(withNap), NOW).nap, undefined)
 // surplus cannot be banked before a debt exists (floor at 0 every night)
 assert.strictEqual(M.debtBalance([night(3, 21, 0, 600), night(1, 23, 0, 420)], 480, NOW).minutes, Math.round(60 * 0.93))
 assert.strictEqual(M.debtBalance([], 480, NOW).minutes, 0)

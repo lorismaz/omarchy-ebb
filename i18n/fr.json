@@ -160,5 +160,6 @@
   "settings.tab.sleep": "Sommeil",
   "settings.tab.activity": "Activité",
   "settings.tab.strap": "Bracelet",
-  "settings.tab.about": "À propos"
+  "settings.tab.about": "À propos",
+  "sleep.nap": "Sieste de %1 à %2, comptée dans la dette de sommeil"
 }
