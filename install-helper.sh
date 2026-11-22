@@ -8,10 +8,10 @@
 
 set -euo pipefail
 
-VERSION=1.2.1
+VERSION=1.2.2
 declare -A SHA256=(
-  [x86_64]=b864fe5e4ce7691f7d6fe510c23cd0f5284c39ea1690f9140596e8aa3ff873ef
-  [aarch64]=7b2188b122346a987b35df03b440f1edba8f5c8cf774000c23af04f7660184d5
+  [x86_64]=51597e4a0ff93836973da19867db545f9b3338a2a7736616aeaea7ccd716fd24
+  [aarch64]=2be2e8da3ab599efc9cf65ec9a93c931b4be6462cbd2f848c5ee6f043ec5c64e
 )
 REPO=https://github.com/lorismaz/omarchy-helio-strap
 DEST="${XDG_DATA_HOME:-$HOME/.local/share}/helio-strap/bin"
