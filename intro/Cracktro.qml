@@ -11,7 +11,7 @@ Item {
   id: root
 
   property var rows: Banner.ROWS
-  property string version: "1.2.0"
+  property string version: "1.2.1"
   property var lines: [
     "helio-strap --version  " + version,
     "steps and move reminders, proven by your feet",

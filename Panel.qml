@@ -152,7 +152,7 @@ Panel {
   // ---------- In-panel settings ----------
   property bool showSettings: false
   property string settingsTab: "sleep"
-  readonly property string pluginVersion: "1.2.0"   // keep in step with manifest.json
+  readonly property string pluginVersion: "1.2.1"   // keep in step with manifest.json
 
   // ---------- Intro (Settings > About) ----------
   property bool introOn: false
@@ -236,7 +236,7 @@ Panel {
   property string helperPath: ""
   property string helperVersion: ""
   // Oldest helper that follows only the confirmed strap and takes notifications on stdin.
-  readonly property string helperRequired: "1.2.0"
+  readonly property string helperRequired: "1.2.1"
   readonly property string installScript: Qt.resolvedUrl("install-helper.sh").toString().replace(/^file:\/\//, "")
   readonly property var helperCommand: [root.helperPath, "stream", root.deviceFilter, root.autoReconnect ? "1" : "0", root.confirmedAddress]
   onHelperCommandChanged: if (helperProc.running) helperProc.running = false   // restartTimer relaunches it
