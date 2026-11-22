@@ -55,6 +55,8 @@ pub struct Session {
     pub auth_key: [u8; 16],
     pub phase: Phase,
     pub began: Instant,
+    /// The proof is sent: a later challenge is someone else's handshake.
+    answered: bool,
     mtu: usize,
     curve: Curve,
     private: Gf,
@@ -83,6 +85,7 @@ impl Session {
             auth_key,
             phase: Phase::Authenticating,
             began: now,
+            answered: false,
             mtu,
             curve,
             private,
@@ -170,6 +173,10 @@ impl Session {
             return;
         }
         if let Some((random, point)) = proto::challenge(payload) {
+            if self.answered {
+                crate::debug("second challenge ignored");
+                return;
+            }
             let Some(shared) = curve::shared(&self.curve, self.private, point) else {
                 crate::debug("strap sent an invalid public point");
                 self.stop(out, Phase::Failed, "error");
@@ -181,6 +188,7 @@ impl Session {
             self.rx.session = Some(session.key);
             let proof = proto::proof(&self.auth_key, &session.key, &random);
             self.send(out, proto::EP_AUTH, &proof, false);
+            self.answered = true;
             return;
         }
         match proto::verdict(payload) {
@@ -432,6 +440,22 @@ mod tests {
         let frames = strap.say(proto::EP_STEPS, &live, true);
         let e = events(&feed(&mut s, frames, Instant::now()));
         assert_eq!(e, vec![json!({"t": "steps", "steps": 1234, "distance": 900, "calories": 55})]);
+    }
+
+    #[test]
+    fn second_challenge_is_ignored() {
+        // Another helper's handshake on the same link: its challenge reaches us too.
+        let now = Instant::now();
+        let mut strap = Strap::new([0x11; 16]);
+        let (mut s, _) = Session::begin([0x11; 16], 247, false, now);
+        let mut challenge = vec![0x10, 0x04, 0x01];
+        challenge.extend(strap.random);
+        challenge.extend(strap.public);
+        let first = feed(&mut s, strap.say(proto::EP_AUTH, &challenge, false), now);
+        assert_eq!(strap.read(&first).len(), 1, "the proof");
+        let again = feed(&mut s, strap.say(proto::EP_AUTH, &challenge, false), now);
+        assert!(strap.read(&again).is_empty(), "no second proof");
+        assert_eq!(s.phase, Phase::Authenticating);
     }
 
     #[test]

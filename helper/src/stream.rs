@@ -68,6 +68,14 @@ impl Printer {
         }
     }
 
+    /// Like `status`, but always written: a failed write ends a helper the
+    /// panel no longer reads.
+    fn probe(&mut self, state: &str) {
+        let v = json!({"t": "status", "state": state});
+        self.print(&v);
+        self.status = Some(v);
+    }
+
     /// Straps the user could confirm: names and addresses only, nothing read from them.
     fn candidates(&mut self, list: &[Info]) {
         let devices: Vec<Value> = list.iter().map(|i| json!({"name": i.name, "address": i.address})).collect();
@@ -200,6 +208,18 @@ pub async fn run(filter: String, reconnect: bool, address: Option<bluer::Address
             changes(&adapter, None, RETRY).await;
         }
     };
+    // One helper per strap: two at once (the shell reloading the panel) run
+    // two handshakes over the same link and the strap refuses both.
+    let _lock = loop {
+        match take_lock() {
+            Lock::Held(f) => break Some(f),
+            Lock::Unavailable => break None,
+            Lock::Busy => {
+                out.probe("searching"); // exits once the panel that started us is gone
+                sleep(Duration::from_secs(1)).await;
+            }
+        }
+    };
     let mut zepp = Zepp::default();
     loop {
         let Some((dev, i)) = confirmed(&adapter, address).await else {
@@ -221,6 +241,26 @@ pub async fn run(filter: String, reconnect: bool, address: Option<bluer::Address
         if reconnect && !dev.is_connected().await.unwrap_or(false) {
             let _ = timeout(CONNECT_TIMEOUT, dev.connect()).await; // out of range or asleep: try later
         }
+    }
+}
+
+enum Lock {
+    Held(std::fs::File),
+    Busy,
+    /// No runtime directory or no locking: go on without.
+    Unavailable,
+}
+
+fn take_lock() -> Lock {
+    let Some(dir) = std::env::var_os("XDG_RUNTIME_DIR") else { return Lock::Unavailable };
+    let path = std::path::Path::new(&dir).join("helio-strap-stream.lock");
+    let Ok(f) = std::fs::OpenOptions::new().create(true).truncate(false).write(true).open(path) else {
+        return Lock::Unavailable;
+    };
+    match f.try_lock() {
+        Ok(()) => Lock::Held(f),
+        Err(std::fs::TryLockError::WouldBlock) => Lock::Busy,
+        Err(_) => Lock::Unavailable,
     }
 }
 
