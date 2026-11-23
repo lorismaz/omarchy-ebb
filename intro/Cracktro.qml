@@ -13,7 +13,7 @@ Item {
   id: root
 
   property var rows: Banner.ROWS
-  property string version: "1.5.1"
+  property string version: "1.5.2"
   property var lines: [
     "ebb-strap --version  " + version,
     "flow by day: steps and move reminders, proven by your feet",

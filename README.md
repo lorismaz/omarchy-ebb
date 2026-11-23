@@ -104,6 +104,11 @@ that otherwise works.
   each shows how far it is from your usual (the average of up to 28 nights before),
   coloured when that is better or worse. The strap keeps 50 stages a night; when a
   night has more, the rest shows as a pale band.
+- **Adjust a night** the strap got wrong (an evening on the sofa taken for
+  sleep): under last night, Adjust takes when you went to bed and got up. Only
+  the strap's stages between the two count, sleep starts at the first one after
+  going to bed, and the debt, the plan and the comparisons follow. The night shows
+  "adjusted"; the strap itself is not changed, and "Use the strap's times" undoes it.
 - **Recovery**: HRV, resting heart rate and breathing come from the strap's own
   history (the same figures as the Zepp app); with 5 nights of them, one line says
   whether recovery is in your usual range. When HRV is 15% or more under its

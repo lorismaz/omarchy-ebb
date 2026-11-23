@@ -414,6 +414,12 @@ function parseNight(o) {
   if (o.nap === true) out.nap = true
   var rf = recoveryFields(o)
   for (var rk in rf) out[rk] = rf[rk]
+  // The user's correction: [in bed, up] (epoch s), near the strap's own night.
+  if (Array.isArray(o.fix) && o.fix.length === 2) {
+    var fa = Number(o.fix[0]), fb = Number(o.fix[1])
+    if (fb - fa >= 3600 && fb - fa <= 20 * 3600 && Math.abs(fa - start) <= 12 * 3600 && Math.abs(fb - end) <= 12 * 3600)
+      out.fix = [fa, fb]
+  }
   // In bed / up again (epoch s), only when they frame the sleep.
   if (Array.isArray(o.bed) && o.bed.length === 2) {
     var bs = Number(o.bed[0]), be = Number(o.bed[1])
@@ -485,6 +491,7 @@ function mergeNights(stored, fresh, nowMs) {
         var k = RECOVERY_KEYS[j]
         if (f[k] === undefined && o[k] !== undefined) keep[k] = o[k]
       }
+      if (f.fix === undefined && o.fix !== undefined) keep.fix = o.fix
       return withChanges(f, keep)
     }
     return f
@@ -512,6 +519,55 @@ function parseNightList(text) {
 }
 
 var STAGE_KINDS = [4, 5, 7, 8]
+var SLEEP_KINDS = [4, 5, 8]
+
+// A night as the user corrected it (fix = [in bed, up], epoch s): only the strap's
+// stages between the two count; sleep starts at the first sleep stage after going
+// to bed and ends with the last one before getting up. "key" keeps the strap's own
+// start, which identifies the night. Unchanged without a fix or without stages.
+function withFix(n) {
+  if (!n || !n.fix || n.nap || !n.stages || !n.stages.length) return n
+  var a = n.fix[0], b = n.fix[1]
+  var kept = []
+  for (var i = 0; i < n.stages.length; i++) {
+    var st = n.stages[i]
+    var s0 = Math.max(a, n.start + st[0] * 60), s1 = Math.min(b, n.start + (st[0] + st[1]) * 60)
+    if (s1 - s0 >= 60) kept.push([s0, s1, st[2]])
+  }
+  var first = -1, last = -1
+  for (var j = 0; j < kept.length; j++)
+    if (SLEEP_KINDS.indexOf(kept[j][2]) >= 0) { if (first < 0) first = j; last = j }
+  if (first < 0) return n
+  kept = kept.slice(first, last + 1)
+  var start = kept[0][0], end = kept[kept.length - 1][1]
+  var tot = { 4: 0, 5: 0, 7: 0, 8: 0 }
+  var stages = kept.map(function(k) {
+    var len = Math.round((k[1] - k[0]) / 60)
+    tot[k[2]] += len
+    return [Math.round((k[0] - start) / 60), len, k[2]]
+  })
+  return withChanges(n, { key: n.start, start: start, end: end, bed: [a, b], stages: stages,
+                          light: tot[4], deep: tot[5], awake: tot[7], rem: tot[8],
+                          asleep: tot[4] + tot[5] + tot[8], adjusted: true })
+}
+
+function applyFixes(nights) { return (nights || []).map(withFix) }
+
+// "22:36" and "07:20" as [in bed, up] for a night: each on the day that puts it
+// nearest the strap's own bed (or sleep) times. null if unreadable or implausible.
+function fixFromClock(n, bedText, upText) {
+  var bm = parseClock(bedText), um = parseClock(upText)
+  if (!n || bm === null || um === null) return null
+  function near(ref, minutes) {
+    var d = new Date(ref * 1000)
+    var t = new Date(d.getFullYear(), d.getMonth(), d.getDate(), Math.floor(minutes / 60), minutes % 60).getTime() / 1000
+    if (t - ref > 12 * 3600) t -= 86400
+    if (ref - t > 12 * 3600) t += 86400
+    return t
+  }
+  var a = near(n.bed ? n.bed[0] : n.start, bm), b = near(n.bed ? n.bed[1] : n.end, um)
+  return b - a >= 3600 && b - a <= 20 * 3600 ? [a, b] : null
+}
 
 // The night's recovery, from the strap's own history: HRV (ms), resting heart
 // rate (bpm), breaths a minute, skin temperature (°C). Each only when plausible.

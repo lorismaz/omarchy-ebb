@@ -56,10 +56,12 @@ Panel {
   property string stepsState: ""
   // Local sleep history (the strap only keeps ~8 nights), merged with each fetch.
   property var nights: []                   // nights and naps; naps count only towards the debt
-  readonly property var mainNights: Model.mainNights(nights)
-  readonly property var naps: Model.napsToday(nights, now)
+  // The nights as the user corrected them; everything below reads these.
+  readonly property var seenNights: Model.applyFixes(nights)
+  readonly property var mainNights: Model.mainNights(seenNights)
+  readonly property var naps: Model.napsToday(seenNights, now)
   readonly property var lastNight: Model.lastNight(mainNights, now)
-  readonly property var debt: Model.debtBalance(nights, sleepNeed, now)
+  readonly property var debt: Model.debtBalance(seenNights, sleepNeed, now)
   readonly property var lastUsual: Model.usual(mainNights, lastNight)
   // "low", "good" or null: last night's HRV and resting heart rate against the usual.
   readonly property var recovery: Model.recoveryStatus(lastNight, lastUsual)
@@ -172,7 +174,7 @@ Panel {
   // ---------- In-panel settings ----------
   property bool showSettings: false
   property string settingsTab: "sleep"
-  readonly property string pluginVersion: "1.5.1"   // keep in step with manifest.json
+  readonly property string pluginVersion: "1.5.2"   // keep in step with manifest.json
 
   // ---------- Intro (Settings > About) ----------
   property bool introOn: false
@@ -200,7 +202,7 @@ Panel {
       }
     }
   }
-  onOpenedChanged: if (!opened) { showSettings = false; viewChoice = "" }
+  onOpenedChanged: if (!opened) { showSettings = false; viewChoice = ""; fixing = false }
 
   // Same path as `omarchy bar set`: persist into shell.json through the bar.
   function setSetting(key, value) {
@@ -479,6 +481,21 @@ Panel {
 
   function forgetStrap() {
     root.setSetting("deviceAddress", "")
+  }
+
+  // Correct a night's bed times, or (fix null) go back to the strap's.
+  property bool fixing: false
+  function setFix(night, fix) {
+    var key = night.key !== undefined ? night.key : night.start
+    root.nights = root.nights.map(function(n) {
+      if (n.start !== key) return n
+      var m = Model.withChanges(n, {})
+      if (fix) m.fix = fix
+      else delete m.fix
+      return m
+    })
+    root.saveNights()
+    root.fixing = false
   }
 
   function saveDay(next) {
@@ -1107,8 +1124,116 @@ Panel {
                 font.pixelSize: Style.font.bodySmall
                 text: root.lastNight
                   ? strings.t("sleep.times").arg(root.clock(root.lastNight.start)).arg(root.clock(root.lastNight.end))
-                      + (root.lastNight.score > 0 ? "  ·  " + strings.t("sleep.score").arg(root.lastNight.score) : "")
+                      + (root.lastNight.adjusted ? "  ·  " + strings.t("sleep.adjusted")
+                         : root.lastNight.score > 0 ? "  ·  " + strings.t("sleep.score").arg(root.lastNight.score) : "")
                   : ""
+              }
+            }
+
+            // Correct the night when the strap took an evening on the sofa for sleep.
+            Item {
+              visible: root.lastNight !== null && !root.fixing && root.lastNight.stages !== undefined
+              width: parent.width
+              implicitHeight: adjustButton.implicitHeight
+              Button {
+                id: adjustButton
+                anchors.right: parent.right
+                iconText: "󰏫"
+                text: strings.t(root.lastNight && root.lastNight.adjusted ? "sleep.adjustAgain" : "sleep.adjust")
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                fontSize: Style.font.caption
+                onClicked: {
+                  var n = root.lastNight
+                  bedField.text = root.clock(n.bed ? n.bed[0] : n.start)
+                  upField.text = root.clock(n.bed ? n.bed[1] : n.end)
+                  root.fixing = true
+                }
+              }
+            }
+
+            Column {
+              visible: root.fixing && root.lastNight !== null
+              width: parent.width
+              spacing: Style.space(6)
+
+              PlainText {
+                width: parent.width
+                wrapMode: Text.Wrap
+                color: root.dim
+                font.pixelSize: Style.font.caption
+                text: strings.t("sleep.adjustHint")
+              }
+
+              Row {
+                spacing: Style.space(8)
+                PlainText { text: strings.t("sleep.inBed"); color: root.dim; font.pixelSize: Style.font.bodySmall; anchors.verticalCenter: parent.verticalCenter }
+                TextField {
+                  id: bedField
+                  width: Style.space(64)
+                  horizontalAlignment: TextInput.AlignHCenter
+                  placeholderText: "22:30"
+                  foreground: root.foreground
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  maximumLength: 5
+                }
+                PlainText { text: strings.t("sleep.up"); color: root.dim; font.pixelSize: Style.font.bodySmall; anchors.verticalCenter: parent.verticalCenter }
+                TextField {
+                  id: upField
+                  width: Style.space(64)
+                  horizontalAlignment: TextInput.AlignHCenter
+                  placeholderText: "07:00"
+                  foreground: root.foreground
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  maximumLength: 5
+                }
+              }
+
+              PlainText {
+                id: fixError
+                visible: text !== ""
+                color: root.urgent
+                font.pixelSize: Style.font.caption
+                text: ""
+              }
+
+              Row {
+                spacing: Style.space(8)
+                Button {
+                  text: strings.t("sleep.adjustSave")
+                  foreground: root.foreground
+                  fontFamily: root.fontFamily
+                  fontSize: Style.font.bodySmall
+                  bordered: true
+                  active: true
+                  onClicked: {
+                    var raw = root.lastNight.key !== undefined
+                      ? root.nights.filter(function(n) { return n.start === root.lastNight.key })[0] : root.lastNight
+                    var fix = Model.fixFromClock(raw, bedField.text, upField.text)
+                    if (!fix) { fixError.text = strings.t("sleep.adjustInvalid"); return }
+                    if (!Model.withFix(Model.withChanges(raw, { fix: fix })).adjusted) { fixError.text = strings.t("sleep.adjustNoSleep"); return }
+                    fixError.text = ""
+                    root.setFix(root.lastNight, fix)
+                  }
+                }
+                Button {
+                  visible: root.lastNight !== null && root.lastNight.adjusted === true
+                  text: strings.t("sleep.adjustReset")
+                  foreground: root.foreground
+                  fontFamily: root.fontFamily
+                  fontSize: Style.font.bodySmall
+                  bordered: true
+                  onClicked: root.setFix(root.lastNight, null)
+                }
+                Button {
+                  text: strings.t("sleep.adjustCancel")
+                  foreground: root.foreground
+                  fontFamily: root.fontFamily
+                  fontSize: Style.font.bodySmall
+                  onClicked: { fixError.text = ""; root.fixing = false }
+                }
               }
             }
 

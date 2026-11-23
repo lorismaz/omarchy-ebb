@@ -4,7 +4,7 @@ const path = require("path")
 const assert = require("assert")
 
 const src = fs.readFileSync(path.join(__dirname, "..", "Model.js"), "utf8").replace(".pragma library", "")
-const M = new Function(src + "; return { parseLine, zoneFor, zoneBounds, normalizeMaxHr, emptyStats, addReading, average, pushPoint, rmssd, pushRR, formatDuration, batteryIcon, normalizeStepGoal, normalizeBarMode, goalProgress, parseClock, normalizeBedtime, formatClock, dayKey, minutesPastBedtime, freshDay, loadDay, withChanges, hoursMinutes, parseSleepNeed, normalizeWake, normalizeFallAsleep, bedtimeFor, sleepIfBedNow, SLEEP_NEEDS, parseNight, lastNight, mergeNights, parseNightList, debtBalance, circularStats, regularity, planNight, eveningAction, morningAction, localDateKey, scheduleFromDays, wakeTarget, targetMorning, WAKE_KEYS, applyLatency, typicalLatency, recordSteps, movedRecently, lastMoveInMinutes, activeHours, ACTIVE_HOUR_STEPS, mainNights, napsToday, nightLatency, efficiency, usual, applyRecovery, recoveryStatus, moveAction, normalizeMoveEvery, normalizeMoveSteps, MOVE_STEPS_DEFAULT, hourBars, autoView, clockSet, rebaseUnsetClock, minutesUntilBedtime, normalizeAddress, versionLess, MAX_POINTS, MAX_NAME };")()
+const M = new Function(src + "; return { parseLine, zoneFor, zoneBounds, normalizeMaxHr, emptyStats, addReading, average, pushPoint, rmssd, pushRR, formatDuration, batteryIcon, normalizeStepGoal, normalizeBarMode, goalProgress, parseClock, normalizeBedtime, formatClock, dayKey, minutesPastBedtime, freshDay, loadDay, withChanges, hoursMinutes, parseSleepNeed, normalizeWake, normalizeFallAsleep, bedtimeFor, sleepIfBedNow, SLEEP_NEEDS, parseNight, lastNight, mergeNights, parseNightList, debtBalance, circularStats, regularity, planNight, eveningAction, morningAction, localDateKey, scheduleFromDays, wakeTarget, targetMorning, WAKE_KEYS, applyLatency, typicalLatency, recordSteps, movedRecently, lastMoveInMinutes, activeHours, ACTIVE_HOUR_STEPS, mainNights, napsToday, nightLatency, efficiency, usual, applyRecovery, recoveryStatus, withFix, applyFixes, fixFromClock, moveAction, normalizeMoveEvery, normalizeMoveSteps, MOVE_STEPS_DEFAULT, hourBars, autoView, clockSet, rebaseUnsetClock, minutesUntilBedtime, normalizeAddress, versionLess, MAX_POINTS, MAX_NAME };")()
 
 // Heart rate lines
 let ev = M.parseLine('{"t":"hr","bpm":72,"contact":null,"rr":[812,830]}')
@@ -235,6 +235,24 @@ const planOk = M.planNight(420, 480, 15, [], 0, NOW, 0), planLow = M.planNight(4
 assert.strictEqual(planLow.recovery, 30); assert.strictEqual(planLow.payback, 30)
 assert.strictEqual(((planOk.bedtime - planLow.bedtime) + 1440) % 1440, 30)
 assert.strictEqual(M.planNight(420, 480, 15, [], 400, NOW, 30).payback, 60)              // debt already at the cap
+// a corrected night: TV until 22:36 is not sleep
+const tv = { start: new Date(2026, 10, 22, 21, 36).getTime() / 1000, asleep: 0, deep: 0, light: 0, rem: 0, awake: 0, score: 76 }
+tv.stages = [[0, 30, 7], [30, 30, 4], [60, 120, 5], [180, 400, 8], [580, 4, 7]]   // awake, light, deep, REM, awake
+tv.end = tv.start + 584 * 60; tv.bed = [tv.start - 50 * 60, tv.end + 120]
+const tvFix = M.fixFromClock(tv, "22:36", "07:20")
+assert.strictEqual(new Date(tvFix[0] * 1000).getHours(), 22); assert.strictEqual(new Date(tvFix[1] * 1000).getDate(), 23)
+const fixed = M.withFix({ ...tv, fix: tvFix })
+assert.strictEqual(fixed.adjusted, true); assert.strictEqual(fixed.key, tv.start)
+assert.strictEqual(new Date(fixed.start * 1000).getMinutes(), 36)                       // falls asleep at the first sleep stage after bed
+assert.strictEqual(fixed.light, 0); assert.strictEqual(fixed.deep, 120)                 // the light stage before 22:36 is gone
+assert.strictEqual(M.nightLatency(fixed).minutes, 0)
+assert.deepStrictEqual(fixed.stages[0], [0, 120, 5])
+assert.strictEqual(M.withFix(tv), tv)                                                   // no fix, no change
+assert.strictEqual(M.fixFromClock(tv, "x", "07:20"), null)
+assert.strictEqual(M.fixFromClock(tv, "07:00", "07:20"), null)                          // twenty minutes is not a night
+assert.deepStrictEqual(M.parseNight({ ...tv, fix: tvFix }).fix, tvFix)
+assert.strictEqual(M.parseNight({ ...tv, fix: [0, 1] }).fix, undefined)
+assert.deepStrictEqual(M.mergeNights([{ ...M.parseNight(tv), fix: tvFix }], [M.parseNight(tv)], tv.end * 1000).find(n => n.start === tv.start).fix, tvFix)
 // surplus cannot be banked before a debt exists (floor at 0 every night)
 assert.strictEqual(M.debtBalance([night(3, 21, 0, 600), night(1, 23, 0, 420)], 480, NOW).minutes, Math.round(60 * 0.93))
 assert.strictEqual(M.debtBalance([], 480, NOW).minutes, 0)

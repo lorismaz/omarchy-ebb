@@ -180,5 +180,16 @@
   "tile.timeToMove": "time to move",
   "tile.reminderIn": "reminder in %1",
   "tile.activeHours": "Active hours",
-  "tile.activeHoursNote": "%1+ steps each"
+  "tile.activeHoursNote": "%1+ steps each",
+  "sleep.adjusted": "adjusted",
+  "sleep.adjust": "Adjust",
+  "sleep.adjustAgain": "Adjust again",
+  "sleep.adjustHint": "When you went to bed and got up. Only the strap's sleep between the two counts; it stays on the strap as it is.",
+  "sleep.inBed": "In bed",
+  "sleep.up": "Up",
+  "sleep.adjustSave": "Save",
+  "sleep.adjustReset": "Use the strap's times",
+  "sleep.adjustCancel": "Cancel",
+  "sleep.adjustInvalid": "Enter two times like 22:30 and 07:00, at least an hour apart.",
+  "sleep.adjustNoSleep": "The strap recorded no sleep between these times."
 }

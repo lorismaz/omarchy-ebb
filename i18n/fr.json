@@ -180,5 +180,16 @@
   "tile.timeToMove": "il est temps de bouger",
   "tile.reminderIn": "rappel dans %1",
   "tile.activeHours": "Heures actives",
-  "tile.activeHoursNote": "%1+ pas chacune"
+  "tile.activeHoursNote": "%1+ pas chacune",
+  "sleep.adjusted": "ajustée",
+  "sleep.adjust": "Ajuster",
+  "sleep.adjustAgain": "Réajuster",
+  "sleep.adjustHint": "Quand tu t'es couché et levé. Seul le sommeil enregistré par le bracelet entre les deux compte ; le bracelet n'est pas modifié.",
+  "sleep.inBed": "Au lit",
+  "sleep.up": "Levé",
+  "sleep.adjustSave": "Enregistrer",
+  "sleep.adjustReset": "Reprendre les heures du bracelet",
+  "sleep.adjustCancel": "Annuler",
+  "sleep.adjustInvalid": "Saisis deux heures comme 22:30 et 07:00, à au moins une heure d'écart.",
+  "sleep.adjustNoSleep": "Le bracelet n'a enregistré aucun sommeil entre ces heures."
 }
