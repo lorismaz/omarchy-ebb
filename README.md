@@ -97,15 +97,14 @@ that otherwise works.
   of the last 14 nights once 5 are measured, and your manual value until then. With 2h or more of debt it moves earlier by debt ÷ 4 (max 60 min,
   in 15-min steps), never more than an hour before your usual bedtime.
 - **Last night** in the Sleep view: a hypnogram (awake, REM, light and deep over
-  the night, from the strap's own stages), the totals, when you went to bed and got
-  up, how long you took to fall asleep, the share of time in bed spent asleep, and
-  your average heart rate asleep. Once 5 nights are in, a line compares the night
-  with your usual (the average of up to 28 nights before it): time asleep, deep,
-  REM, efficiency and heart rate. The strap keeps 50 stages a night; when a night
-  has more, the rest shows as a pale band and the totals still count it.
-- **Recovery** under the night: HRV, resting heart rate and breathing rate from
-  the strap's own history (the same figures as the Zepp app), and with 5 nights of
-  them, whether they are in your usual range. When HRV is 15% or more under its
+  the night, from the strap's own stages), then six numbers: deep, REM, how long you
+  took to fall asleep, HRV, resting heart rate and breathing. Once 5 nights are in,
+  each shows how far it is from your usual (the average of up to 28 nights before),
+  coloured when that is better or worse. The strap keeps 50 stages a night; when a
+  night has more, the rest shows as a pale band.
+- **Recovery**: HRV, resting heart rate and breathing come from the strap's own
+  history (the same figures as the Zepp app); with 5 nights of them, one line says
+  whether recovery is in your usual range. When HRV is 15% or more under its
   usual, or resting heart rate 4 bpm or more over it, recovery is low and that
   evening's bedtime moves 30 minutes earlier (with any debt payback, an hour at
   most). Skin temperature is kept too, and shown only against your usual.

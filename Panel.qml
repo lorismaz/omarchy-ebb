@@ -417,56 +417,33 @@ Panel {
     root.notify(strings.t("morning.title").arg(root.duration(n.asleep)), lines.join("\n"), false)
   }
 
-  function bedText() {
-    var n = root.lastNight
-    if (!n) return ""
-    var parts = []
-    if (n.bed) {
-      parts.push(strings.t("sleep.bed").arg(root.clock(n.bed[0])).arg(root.clock(n.bed[1])))
-      parts.push(strings.t("sleep.fellAsleep").arg(root.duration(Model.nightLatency(n).minutes)))
-      parts.push(strings.t("sleep.efficiency").arg(Commons.I18n.formatNumber(Model.efficiency(n), 0)))
-    }
-    if (n.hr) parts.push(strings.t("sleep.hr").arg(Commons.I18n.formatNumber(n.hr, 0)))
-    return parts.join("  ·  ")
-  }
-
-  function signedMinutes(m) {
-    return (m < 0 ? "−" : "+") + root.duration(Math.abs(Math.round(m)))
-  }
-
-  function recoveryText() {
-    var n = root.lastNight
-    if (!n) return ""
-    var parts = []
-    if (n.hrv !== undefined) parts.push(strings.t("recovery.hrv").arg(Commons.I18n.formatNumber(n.hrv, 0)))
-    if (n.rhr !== undefined) parts.push(strings.t("recovery.rhr").arg(Commons.I18n.formatNumber(n.rhr, 0)))
-    if (n.breath !== undefined) parts.push(strings.t("recovery.breath").arg(Commons.I18n.formatNumber(n.breath, 0)))
-    if (!parts.length) return ""
-    var head = strings.t("recovery.title") + " " + parts.join("  ·  ")
-    return root.recovery === "low" ? head + "\n" + strings.t("recovery.low")
-         : root.recovery === "good" ? head + "  ·  " + strings.t("recovery.good") : head
-  }
-
-  function usualText() {
+  // Last night as tiles: { label, value, delta ("↑ 11 ms"), tone (1 better, -1 worse, 0 neutral) }.
+  readonly property var nightTiles: {
     var n = root.lastNight, u = root.lastUsual
-    if (!n || !u) return ""
-    var parts = []
-    function add(key, diff, worth, text) { if (diff !== null && Math.abs(diff) >= worth) parts.push(strings.t(key).arg(text)) }
-    add("usual.asleep", u.asleep === null ? null : n.asleep - u.asleep, 10, root.signedMinutes(n.asleep - u.asleep))
-    add("usual.deep", u.deep === null ? null : n.deep - u.deep, 10, root.signedMinutes(n.deep - u.deep))
-    add("usual.rem", u.rem === null ? null : n.rem - u.rem, 10, root.signedMinutes(n.rem - u.rem))
-    var eff = Model.efficiency(n)
-    function signed(x, digits) { return (x < 0 ? "−" : "+") + Commons.I18n.formatNumber(Math.abs(x), digits) }
-    add("usual.efficiency", u.efficiency === null || eff === null ? null : eff - u.efficiency, 3,
-        signed(eff - u.efficiency, 0))
-    add("usual.hr", u.hr === null || !n.hr ? null : n.hr - u.hr, 2, signed(n.hr - u.hr, 0))
-    add("usual.hrv", u.hrv === null || n.hrv === undefined ? null : n.hrv - u.hrv, 4, signed(n.hrv - u.hrv, 0))
-    add("usual.rhr", u.rhr === null || n.rhr === undefined ? null : n.rhr - u.rhr, 2, signed(n.rhr - u.rhr, 0))
-    add("usual.breath", u.breath === null || n.breath === undefined ? null : n.breath - u.breath, 1, signed(n.breath - u.breath, 1))
-    add("usual.temp", u.temp === null || n.temp === undefined ? null : n.temp - u.temp, 0.3, signed(n.temp - u.temp, 1))
-    var nights = Commons.I18n.formatNumber(u.nights, 0)
-    return parts.length ? strings.tn("sleep.usual", u.nights).arg(nights).arg(parts.join(", "))
-                        : strings.tn("sleep.usualSame", u.nights).arg(nights)
+    if (!n) return []
+    var out = []
+    function fmt(x, digits) { return Commons.I18n.formatNumber(x, digits) }
+    function tile(key, value, diff, show, better, worth) {
+      var t = { label: strings.t(key), value: value, delta: "", tone: 0 }
+      if (diff !== null && diff !== undefined && isFinite(diff) && Math.abs(diff) >= worth) {
+        t.delta = (diff > 0 ? "↑ " : "↓ ") + show(Math.abs(diff))
+        t.tone = better === 0 ? 0 : (diff > 0) === (better > 0) ? 1 : -1
+      }
+      out.push(t)
+    }
+    function mins(m) { return root.duration(Math.round(m)) }
+    tile("tile.deep", root.duration(n.deep), u && u.deep !== null ? n.deep - u.deep : null, mins, 1, 10)
+    tile("tile.rem", root.duration(n.rem), u && u.rem !== null ? n.rem - u.rem : null, mins, 1, 10)
+    var lat = Model.nightLatency(n)
+    if (lat) tile("tile.fellAsleep", root.duration(lat.minutes),
+                  root.latencyInfo.minutes !== null ? lat.minutes - root.latencyInfo.minutes : null, mins, -1, 5)
+    if (n.hrv !== undefined) tile("tile.hrv", strings.t("unit.ms").arg(fmt(n.hrv, 0)),
+                                  u && u.hrv !== null ? n.hrv - u.hrv : null, function(x) { return strings.t("unit.ms").arg(fmt(x, 0)) }, 1, 4)
+    if (n.rhr !== undefined) tile("tile.rhr", strings.t("unit.bpmValue").arg(fmt(n.rhr, 0)),
+                                  u && u.rhr !== null ? n.rhr - u.rhr : null, function(x) { return fmt(x, 0) }, -1, 2)
+    if (n.breath !== undefined) tile("tile.breath", strings.t("unit.perMin").arg(fmt(n.breath, 0)),
+                                     u && u.breath !== null ? n.breath - u.breath : null, function(x) { return fmt(x, 1) }, 0, 1)
+    return out
   }
 
   function clock(epochSeconds) {
@@ -957,13 +934,11 @@ Panel {
               wrapMode: Text.Wrap
               color: root.dim
               font.pixelSize: Style.font.bodySmall
-              text: strings.t("tonight.plan").arg(Model.formatClock(root.bedtime))
-                      .arg(Model.formatClock(root.wakeTime)).arg(root.duration(root.sleepNeed))
+              // The bedtime is the big number above; here only why it is where it is.
+              text: strings.t("tonight.wake").arg(Model.formatClock(root.wakeTime)).arg(root.duration(root.sleepNeed))
                     + (root.target.free ? "\n" + strings.t("tonight.free").arg(Model.formatClock(root.wakeTime)) : "")
                     + (root.plan.payback - root.plan.recovery > 0 ? "\n" + strings.t("tonight.payback").arg(root.duration(root.plan.payback - root.plan.recovery)) : "")
                     + (root.plan.recovery > 0 ? "\n" + strings.t("tonight.recovery").arg(root.duration(root.plan.recovery)) : "")
-                    + (root.plan.waso >= 10 ? "\n" + strings.t("tonight.waso").arg(root.duration(root.plan.waso)) : "")
-                    + (root.fallAsleepMeasured ? "\n" + strings.t("tonight.latency").arg(root.duration(root.fallAsleep)) : "")
             }
 
             PlainText {
@@ -1081,14 +1056,33 @@ Panel {
               }
             }
 
-            // Hypnogram: one lane per stage, awake on top, deep at the bottom.
+            // Hypnogram: one lane per stage, awake on top, deep at the bottom, named on the side.
+            Row {
+              visible: hypno.stages.length > 0
+              width: parent.width
+              spacing: Style.space(8)
+
+              Column {
+                id: laneNames
+                Repeater {
+                  model: ["stage.awake", "stage.rem", "stage.light", "stage.deep"]
+                  PlainText {
+                    required property string modelData
+                    height: hypno.laneH
+                    verticalAlignment: Text.AlignVCenter
+                    text: strings.t(modelData)
+                    color: root.dim
+                    font.pixelSize: Style.font.caption
+                  }
+                }
+              }
+
             Item {
               id: hypno
               readonly property var night: root.lastNight
               readonly property var stages: night && night.stages ? night.stages : []
-              visible: stages.length > 0
-              width: parent.width
-              height: Style.space(44)
+              width: parent.width - laneNames.width - parent.spacing
+              height: Style.space(64)
               readonly property real span: night ? Math.max(1, (night.end - night.start) / 60) : 1
               readonly property var lanes: ({ 7: 0, 8: 1, 4: 2, 5: 3 })
               readonly property real laneH: height / 4
@@ -1127,6 +1121,7 @@ Panel {
                 }
               }
             }
+            }
 
             // Stage proportions, for nights saved before the hypnogram: deep · light · REM · awake
             Row {
@@ -1159,45 +1154,56 @@ Panel {
             }
 
             PlainText {
+              visible: hypno.folded
+              width: parent.width
+              wrapMode: Text.Wrap
+              color: root.dim
+              font.pixelSize: Style.font.caption
+              text: strings.t("sleep.folded")
+            }
+
+            // The night in six numbers, each against your usual.
+            Grid {
+              id: tiles
               visible: root.lastNight !== null
               width: parent.width
-              wrapMode: Text.Wrap
-              color: root.dim
-              font.pixelSize: Style.font.caption
-              text: root.lastNight ? strings.t("sleep.stages").arg(root.duration(root.lastNight.deep))
-                      .arg(root.duration(root.lastNight.light)).arg(root.duration(root.lastNight.rem))
-                      .arg(root.duration(root.lastNight.awake))
-                      + (hypno.folded ? "  ·  " + strings.t("sleep.folded") : "") : ""
+              columns: 3
+              columnSpacing: Style.space(8)
+              rowSpacing: Style.space(10)
+              Repeater {
+                model: root.nightTiles
+                Column {
+                  required property var modelData
+                  width: (tiles.width - tiles.columnSpacing * 2) / 3
+                  spacing: Style.space(1)
+                  PlainText {
+                    text: modelData.label
+                    color: root.dim
+                    font.pixelSize: Style.font.caption
+                  }
+                  PlainText {
+                    text: modelData.value
+                    font.pixelSize: Style.font.body
+                    font.bold: true
+                  }
+                  PlainText {
+                    text: modelData.delta !== "" ? modelData.delta : " "
+                    color: modelData.tone > 0 ? root.accent : modelData.tone < 0 ? root.urgent : root.dim
+                    font.pixelSize: Style.font.caption
+                  }
+                }
+              }
             }
 
-            // In bed, how long it took to fall asleep, efficiency, heart rate asleep.
-            PlainText {
-              visible: text !== ""
-              width: parent.width
-              wrapMode: Text.Wrap
-              color: root.dim
-              font.pixelSize: Style.font.caption
-              text: root.bedText()
-            }
-
-            // Recovery: HRV, resting heart rate, breathing; and how it compares.
+            // One verdict: recovery against the usual.
             PlainText {
               visible: text !== ""
               width: parent.width
               wrapMode: Text.Wrap
               color: root.recovery === "low" ? root.urgent : root.dim
-              font.pixelSize: Style.font.caption
-              text: root.recoveryText()
-            }
-
-            // Against your usual nights.
-            PlainText {
-              visible: text !== ""
-              width: parent.width
-              wrapMode: Text.Wrap
-              color: root.dim
-              font.pixelSize: Style.font.caption
-              text: root.usualText()
+              font.pixelSize: Style.font.bodySmall
+              text: root.recovery === "low" ? strings.t("recovery.low")
+                  : root.recovery === "good" ? strings.t("recovery.goodLine") : ""
             }
 
             PlainText {
@@ -1228,7 +1234,7 @@ Panel {
               text: root.regular.onsetSd === null ? ""
                 : root.regular.irregular ? strings.t("regular.irregular").arg(root.duration(root.regular.onsetSd))
                 : root.regular.jetlagFlag ? strings.t("regular.jetlag").arg(root.duration(root.regular.jetlag))
-                : strings.t("regular.ok").arg(root.duration(root.regular.onsetSd))
+                : ""
             }
           }
 
