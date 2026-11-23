@@ -424,9 +424,9 @@ Panel {
     if (n.bed) {
       parts.push(strings.t("sleep.bed").arg(root.clock(n.bed[0])).arg(root.clock(n.bed[1])))
       parts.push(strings.t("sleep.fellAsleep").arg(root.duration(Model.nightLatency(n).minutes)))
-      parts.push(strings.t("sleep.efficiency").arg(Model.efficiency(n)))
+      parts.push(strings.t("sleep.efficiency").arg(Commons.I18n.formatNumber(Model.efficiency(n), 0)))
     }
-    if (n.hr) parts.push(strings.t("sleep.hr").arg(n.hr))
+    if (n.hr) parts.push(strings.t("sleep.hr").arg(Commons.I18n.formatNumber(n.hr, 0)))
     return parts.join("  ·  ")
   }
 
@@ -438,9 +438,9 @@ Panel {
     var n = root.lastNight
     if (!n) return ""
     var parts = []
-    if (n.hrv !== undefined) parts.push(strings.t("recovery.hrv").arg(Math.round(n.hrv)))
-    if (n.rhr !== undefined) parts.push(strings.t("recovery.rhr").arg(Math.round(n.rhr)))
-    if (n.breath !== undefined) parts.push(strings.t("recovery.breath").arg(Math.round(n.breath)))
+    if (n.hrv !== undefined) parts.push(strings.t("recovery.hrv").arg(Commons.I18n.formatNumber(n.hrv, 0)))
+    if (n.rhr !== undefined) parts.push(strings.t("recovery.rhr").arg(Commons.I18n.formatNumber(n.rhr, 0)))
+    if (n.breath !== undefined) parts.push(strings.t("recovery.breath").arg(Commons.I18n.formatNumber(n.breath, 0)))
     if (!parts.length) return ""
     var head = strings.t("recovery.title") + " " + parts.join("  ·  ")
     return root.recovery === "low" ? head + "\n" + strings.t("recovery.low")
@@ -456,17 +456,17 @@ Panel {
     add("usual.deep", u.deep === null ? null : n.deep - u.deep, 10, root.signedMinutes(n.deep - u.deep))
     add("usual.rem", u.rem === null ? null : n.rem - u.rem, 10, root.signedMinutes(n.rem - u.rem))
     var eff = Model.efficiency(n)
+    function signed(x, digits) { return (x < 0 ? "−" : "+") + Commons.I18n.formatNumber(Math.abs(x), digits) }
     add("usual.efficiency", u.efficiency === null || eff === null ? null : eff - u.efficiency, 3,
-        (eff - u.efficiency < 0 ? "−" : "+") + Math.abs(Math.round(eff - u.efficiency)) + "%")
-    add("usual.hr", u.hr === null || !n.hr ? null : n.hr - u.hr, 2,
-        (n.hr - u.hr < 0 ? "−" : "+") + Math.abs(Math.round(n.hr - u.hr)))
-    function signed(x, digits) { return (x < 0 ? "−" : "+") + Math.abs(x).toFixed(digits) }
+        signed(eff - u.efficiency, 0))
+    add("usual.hr", u.hr === null || !n.hr ? null : n.hr - u.hr, 2, signed(n.hr - u.hr, 0))
     add("usual.hrv", u.hrv === null || n.hrv === undefined ? null : n.hrv - u.hrv, 4, signed(n.hrv - u.hrv, 0))
     add("usual.rhr", u.rhr === null || n.rhr === undefined ? null : n.rhr - u.rhr, 2, signed(n.rhr - u.rhr, 0))
     add("usual.breath", u.breath === null || n.breath === undefined ? null : n.breath - u.breath, 1, signed(n.breath - u.breath, 1))
     add("usual.temp", u.temp === null || n.temp === undefined ? null : n.temp - u.temp, 0.3, signed(n.temp - u.temp, 1))
-    return parts.length ? strings.t("sleep.usual").arg(u.nights).arg(parts.join(", "))
-                        : strings.t("sleep.usualSame").arg(u.nights)
+    var nights = Commons.I18n.formatNumber(u.nights, 0)
+    return parts.length ? strings.tn("sleep.usual", u.nights).arg(nights).arg(parts.join(", "))
+                        : strings.tn("sleep.usualSame", u.nights).arg(nights)
   }
 
   function clock(epochSeconds) {
@@ -856,7 +856,8 @@ Panel {
                 model: [6, 9, 12, 15, 18, 21]
                 PlainText {
                   required property int modelData
-                  x: (modelData - 6) / 18 * parent.width
+                  readonly property real at: (modelData - 6) / 18 * parent.width
+                  x: Commons.I18n.rightToLeft ? parent.width - at - width : at
                   text: Model.pad2(modelData)
                   color: root.dim
                   font.pixelSize: Style.font.caption
@@ -1114,7 +1115,9 @@ Panel {
                   required property var modelData
                   required property int index
                   readonly property bool pale: hypno.folded && index === hypno.stages.length - 1
-                  x: modelData[0] / hypno.span * hypno.width
+                  readonly property real at: modelData[0] / hypno.span * hypno.width
+                  // Time runs with the reading direction.
+                  x: Commons.I18n.rightToLeft ? hypno.width - at - width : at
                   width: Math.max(1, modelData[1] / hypno.span * hypno.width)
                   y: pale ? 0 : hypno.lanes[modelData[2]] * hypno.laneH + 1
                   height: pale ? hypno.height : hypno.laneH - 2

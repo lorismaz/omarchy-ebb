@@ -167,12 +167,18 @@
   "sleep.fellAsleep": "endormi en %1",
   "sleep.efficiency": "%1 % endormi",
   "sleep.hr": "rythme cardiaque %1 bpm",
-  "sleep.usual": "Par rapport à d'habitude (%1 nuits) : %2",
-  "sleep.usualSame": "Comme d'habitude (%1 nuits)",
+  "sleep.usual": {
+    "one": "Par rapport à d'habitude (%1 nuit) : %2",
+    "other": "Par rapport à d'habitude (%1 nuits) : %2"
+  },
+  "sleep.usualSame": {
+    "one": "Comme d'habitude (%1 nuit)",
+    "other": "Comme d'habitude (%1 nuits)"
+  },
   "usual.asleep": "sommeil %1",
   "usual.deep": "profond %1",
   "usual.rem": "paradoxal %1",
-  "usual.efficiency": "efficacité %1",
+  "usual.efficiency": "efficacité %1 %",
   "usual.hr": "rythme cardiaque %1",
   "recovery.title": "Récupération :",
   "recovery.hrv": "VFC %1 ms",

@@ -167,12 +167,18 @@
   "sleep.fellAsleep": "fell asleep in %1",
   "sleep.efficiency": "%1% asleep",
   "sleep.hr": "heart rate %1 bpm",
-  "sleep.usual": "Against your usual (%1 nights): %2",
-  "sleep.usualSame": "In line with your usual (%1 nights)",
+  "sleep.usual": {
+    "one": "Against your usual (%1 night): %2",
+    "other": "Against your usual (%1 nights): %2"
+  },
+  "sleep.usualSame": {
+    "one": "In line with your usual (%1 night)",
+    "other": "In line with your usual (%1 nights)"
+  },
   "usual.asleep": "asleep %1",
   "usual.deep": "deep %1",
   "usual.rem": "REM %1",
-  "usual.efficiency": "efficiency %1",
+  "usual.efficiency": "efficiency %1%",
   "usual.hr": "heart rate %1",
   "recovery.title": "Recovery:",
   "recovery.hrv": "HRV %1 ms",
