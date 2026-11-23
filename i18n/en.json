@@ -161,5 +161,17 @@
   "settings.tab.activity": "Activity",
   "settings.tab.strap": "Strap",
   "settings.tab.about": "About",
-  "sleep.nap": "Nap %1 at %2, counted in your sleep debt"
+  "sleep.nap": "Nap %1 at %2, counted in your sleep debt",
+  "sleep.folded": "the strap keeps 50 stages a night; the pale band is the rest",
+  "sleep.bed": "In bed %1 → %2",
+  "sleep.fellAsleep": "fell asleep in %1",
+  "sleep.efficiency": "%1% asleep",
+  "sleep.hr": "heart rate %1 bpm",
+  "sleep.usual": "Against your usual (%1 nights): %2",
+  "sleep.usualSame": "In line with your usual (%1 nights)",
+  "usual.asleep": "asleep %1",
+  "usual.deep": "deep %1",
+  "usual.rem": "REM %1",
+  "usual.efficiency": "efficiency %1",
+  "usual.hr": "heart rate %1"
 }

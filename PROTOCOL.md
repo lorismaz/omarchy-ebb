@@ -102,10 +102,16 @@ encrypted if its flag says so.
 |---|---|---|
 | `0x00` | u32 | when the record was written (epoch s) |
 | `0x04` | u32 | local midnight ending the night (epoch s) |
-| `0x15` | u8 | average heart rate |
+| `0x0a`, `0x0c` | 2 × u16 | fell asleep, woke (minutes from the previous midnight; woke is exclusive) |
+| `0x0e`, `0x10` | 2 × u16 | went to bed, got up (same units; got up is exclusive) |
+| `0x15` | u8 | average heart rate asleep |
 | `0x16` | u8 | sleep score |
-| `0x54` | u8 | number of stages (at most 100 fit) |
+| `0x17` | u8 | number of naps that day (at most 10) |
+| `0x18` | 6 × n | naps: `start:u16, end:u16, minutes:u16`, same units, `end` the last minute included |
+| `0x54` | u8 | number of stages in the main sleep (at most 50; a longer night folds the rest into the 50th, and the totals at `0x24A` still count it) |
+| `0x55` | u8 | number of entries in the second table |
 | `0x56` | 5 × n | stages: `start:u16, end:u16, kind:u8`, minutes from the previous midnight (`midnight − 24 h`); `end` is the last minute included |
+| `0x150` | 5 × n | second table, same layout: the day's naps' stages, separated by kind `128` (the time between sleeps) |
 | `0x24A` | 4 × u16 | totals in minutes: REM, light, deep, awake |
 
 Stage kinds: 4 light, 5 deep, 7 awake, 8 REM. A later-written record for an

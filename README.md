@@ -89,12 +89,20 @@ that otherwise works.
 - **Bedtime** is planned as time in bed: wake − (sleep need + payback) − time to
   fall asleep − the time you typically lie awake at night (median of 14 nights,
   max 60 min).
-- **Time to fall asleep** is measured from the strap's per-minute data: from each
-  sleep onset it walks back through still minutes (worn, no steps, low movement) to
-  when you lay down. Nights where the strap was put on just before sleep only give
+- **Time to fall asleep** is the strap's own: from going to bed to falling asleep,
+  as the Zepp app shows it. For nights without bed times it is measured from the
+  per-minute data instead: from each sleep onset it walks back through still
+  minutes (worn, no steps, low movement) to when you lay down. Nights where the strap was put on just before sleep only give
   a minimum and are left out. With Auto on (the default) the plan uses the median
   of the last 14 nights once 5 are measured, and your manual value until then. With 2h or more of debt it moves earlier by debt ÷ 4 (max 60 min,
   in 15-min steps), never more than an hour before your usual bedtime.
+- **Last night** in the Sleep view: a hypnogram (awake, REM, light and deep over
+  the night, from the strap's own stages), the totals, when you went to bed and got
+  up, how long you took to fall asleep, the share of time in bed spent asleep, and
+  your average heart rate asleep. Once 5 nights are in, a line compares the night
+  with your usual (the average of up to 28 nights before it): time asleep, deep,
+  REM, efficiency and heart rate. The strap keeps 50 stages a night; when a night
+  has more, the rest shows as a pale band and the totals still count it.
 - **Sleep debt** is a running balance in real hours, night by night:
   `D = max(0, 0.93·D + max(need − asleep, −2h))`, where asleep is the night plus
   the day's naps (the strap's own nap list; today's show under the night). Naps

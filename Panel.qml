@@ -154,7 +154,7 @@ Panel {
   // ---------- In-panel settings ----------
   property bool showSettings: false
   property string settingsTab: "sleep"
-  readonly property string pluginVersion: "1.3.0"   // keep in step with manifest.json
+  readonly property string pluginVersion: "1.4.0"   // keep in step with manifest.json
 
   // ---------- Intro (Settings > About) ----------
   property bool introOn: false
@@ -238,7 +238,7 @@ Panel {
   property string helperPath: ""
   property string helperVersion: ""
   // Oldest helper that follows only the confirmed strap and takes notifications on stdin.
-  readonly property string helperRequired: "1.3.0"
+  readonly property string helperRequired: "1.4.0"
   readonly property string installScript: Qt.resolvedUrl("install-helper.sh").toString().replace(/^file:\/\//, "")
   readonly property var helperCommand: [root.helperPath, "stream", root.deviceFilter, root.autoReconnect ? "1" : "0", root.confirmedAddress]
   onHelperCommandChanged: if (helperProc.running) helperProc.running = false   // restartTimer relaunches it
@@ -406,6 +406,40 @@ Panel {
     else if (root.regular.jetlagFlag) lines.push(strings.t("regular.jetlag").arg(root.duration(root.regular.jetlag)))
     lines.push(strings.t("morning.tonight").arg(Model.formatClock(root.bedtime)))
     root.notify(strings.t("morning.title").arg(root.duration(n.asleep)), lines.join("\n"), false)
+  }
+
+  function bedText() {
+    var n = root.lastNight
+    if (!n) return ""
+    var parts = []
+    if (n.bed) {
+      parts.push(strings.t("sleep.bed").arg(root.clock(n.bed[0])).arg(root.clock(n.bed[1])))
+      parts.push(strings.t("sleep.fellAsleep").arg(root.duration(Model.nightLatency(n).minutes)))
+      parts.push(strings.t("sleep.efficiency").arg(Model.efficiency(n)))
+    }
+    if (n.hr) parts.push(strings.t("sleep.hr").arg(n.hr))
+    return parts.join("  ·  ")
+  }
+
+  function signedMinutes(m) {
+    return (m < 0 ? "−" : "+") + root.duration(Math.abs(Math.round(m)))
+  }
+
+  function usualText() {
+    var n = root.lastNight, u = Model.usual(root.mainNights, n)
+    if (!n || !u) return ""
+    var parts = []
+    function add(key, diff, worth, text) { if (diff !== null && Math.abs(diff) >= worth) parts.push(strings.t(key).arg(text)) }
+    add("usual.asleep", u.asleep === null ? null : n.asleep - u.asleep, 10, root.signedMinutes(n.asleep - u.asleep))
+    add("usual.deep", u.deep === null ? null : n.deep - u.deep, 10, root.signedMinutes(n.deep - u.deep))
+    add("usual.rem", u.rem === null ? null : n.rem - u.rem, 10, root.signedMinutes(n.rem - u.rem))
+    var eff = Model.efficiency(n)
+    add("usual.efficiency", u.efficiency === null || eff === null ? null : eff - u.efficiency, 3,
+        (eff - u.efficiency < 0 ? "−" : "+") + Math.abs(Math.round(eff - u.efficiency)) + "%")
+    add("usual.hr", u.hr === null || !n.hr ? null : n.hr - u.hr, 2,
+        (n.hr - u.hr < 0 ? "−" : "+") + Math.abs(Math.round(n.hr - u.hr)))
+    return parts.length ? strings.t("sleep.usual").arg(u.nights).arg(parts.join(", "))
+                        : strings.t("sleep.usualSame").arg(u.nights)
   }
 
   function clock(epochSeconds) {
@@ -1018,10 +1052,55 @@ Panel {
               }
             }
 
-            // Stage proportions: deep · light · REM · awake
+            // Hypnogram: one lane per stage, awake on top, deep at the bottom.
+            Item {
+              id: hypno
+              readonly property var night: root.lastNight
+              readonly property var stages: night && night.stages ? night.stages : []
+              visible: stages.length > 0
+              width: parent.width
+              height: Style.space(44)
+              readonly property real span: night ? Math.max(1, (night.end - night.start) / 60) : 1
+              readonly property var lanes: ({ 7: 0, 8: 1, 4: 2, 5: 3 })
+              readonly property real laneH: height / 4
+              // The strap keeps 50 stages a night and folds the rest into the last one;
+              // the totals still count the real stages, so they then disagree.
+              readonly property bool folded: night !== null && stages.length >= 50
+                && Math.abs(stages.reduce(function(a, x) { return a + x[1] }, 0) - (night.asleep + night.awake)) > 10
+
+              Repeater {
+                model: 4
+                Rectangle {
+                  required property int index
+                  y: index * hypno.laneH + hypno.laneH / 2
+                  width: hypno.width
+                  height: 1
+                  color: root.dim
+                  opacity: 0.2
+                }
+              }
+
+              Repeater {
+                model: hypno.stages
+                Rectangle {
+                  required property var modelData
+                  required property int index
+                  readonly property bool pale: hypno.folded && index === hypno.stages.length - 1
+                  x: modelData[0] / hypno.span * hypno.width
+                  width: Math.max(1, modelData[1] / hypno.span * hypno.width)
+                  y: pale ? 0 : hypno.lanes[modelData[2]] * hypno.laneH + 1
+                  height: pale ? hypno.height : hypno.laneH - 2
+                  radius: 2
+                  color: pale ? root.dim : modelData[2] === 7 ? root.urgent : modelData[2] === 8 ? root.foreground : root.accent
+                  opacity: pale ? 0.2 : modelData[2] === 4 ? 0.45 : modelData[2] === 8 ? 0.7 : modelData[2] === 7 ? 0.8 : 1
+                }
+              }
+            }
+
+            // Stage proportions, for nights saved before the hypnogram: deep · light · REM · awake
             Row {
               id: stageBar
-              visible: root.lastNight !== null
+              visible: root.lastNight !== null && !hypno.visible
               width: parent.width
               height: Style.space(6)
               spacing: Style.space(2)
@@ -1056,7 +1135,28 @@ Panel {
               font.pixelSize: Style.font.caption
               text: root.lastNight ? strings.t("sleep.stages").arg(root.duration(root.lastNight.deep))
                       .arg(root.duration(root.lastNight.light)).arg(root.duration(root.lastNight.rem))
-                      .arg(root.duration(root.lastNight.awake)) : ""
+                      .arg(root.duration(root.lastNight.awake))
+                      + (hypno.folded ? "  ·  " + strings.t("sleep.folded") : "") : ""
+            }
+
+            // In bed, how long it took to fall asleep, efficiency, heart rate asleep.
+            PlainText {
+              visible: text !== ""
+              width: parent.width
+              wrapMode: Text.Wrap
+              color: root.dim
+              font.pixelSize: Style.font.caption
+              text: root.bedText()
+            }
+
+            // Against your usual nights.
+            PlainText {
+              visible: text !== ""
+              width: parent.width
+              wrapMode: Text.Wrap
+              color: root.dim
+              font.pixelSize: Style.font.caption
+              text: root.usualText()
             }
 
             PlainText {

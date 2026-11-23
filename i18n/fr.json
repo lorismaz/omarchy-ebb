@@ -161,5 +161,17 @@
   "settings.tab.activity": "Activité",
   "settings.tab.strap": "Bracelet",
   "settings.tab.about": "À propos",
-  "sleep.nap": "Sieste de %1 à %2, comptée dans la dette de sommeil"
+  "sleep.nap": "Sieste de %1 à %2, comptée dans la dette de sommeil",
+  "sleep.folded": "le bracelet garde 50 phases par nuit ; la bande pâle est le reste",
+  "sleep.bed": "Au lit %1 → %2",
+  "sleep.fellAsleep": "endormi en %1",
+  "sleep.efficiency": "%1 % endormi",
+  "sleep.hr": "rythme cardiaque %1 bpm",
+  "sleep.usual": "Par rapport à d'habitude (%1 nuits) : %2",
+  "sleep.usualSame": "Comme d'habitude (%1 nuits)",
+  "usual.asleep": "sommeil %1",
+  "usual.deep": "profond %1",
+  "usual.rem": "paradoxal %1",
+  "usual.efficiency": "efficacité %1",
+  "usual.hr": "rythme cardiaque %1"
 }

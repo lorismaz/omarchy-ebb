@@ -352,6 +352,21 @@ impl Session {
                 if n.nap.is_some() {
                     v["nap"] = true.into();
                 }
+                if let Some((a, b)) = n.bed {
+                    v["bed"] = json!([a, b]);
+                }
+                if let Some(hr) = n.hr {
+                    v["hr"] = hr.into();
+                }
+                if !n.stages.is_empty() {
+                    // [minutes after the start, minutes long, kind]
+                    let list: Vec<Value> = n
+                        .stages
+                        .iter()
+                        .map(|st| json!([(st.start - n.start) / 60, (st.end - st.start) / 60, st.kind]))
+                        .collect();
+                    v["stages"] = list.into();
+                }
                 v
             })
             .collect();

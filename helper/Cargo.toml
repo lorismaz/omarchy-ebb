@@ -1,6 +1,6 @@
 [package]
 name = "ebb-strap"
-version = "1.3.0"
+version = "1.4.0"
 edition = "2024"
 description = "Bluetooth helper for Ebb, the Omarchy plugin: heart rate, steps and sleep from an Amazfit Helio Strap"
 license = "MIT"

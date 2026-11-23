@@ -3,7 +3,7 @@
 // Pure helpers for Ebb, kept free of QML so
 // tests/model.test.js can exercise them under node.
 
-var MAX_LINE = 2048
+var MAX_LINE = 65536             // a fortnight of nights with their hypnograms is ~8 KB
 var MAX_NAME = 64
 var MIN_BPM = 25
 var MAX_BPM = 240
@@ -398,6 +398,25 @@ function parseNight(o) {
   out.score = score === null ? 0 : score
   // A nap from the strap's nap list: counts as sleep, but is not a night.
   if (o.nap === true) out.nap = true
+  // In bed / up again (epoch s), only when they frame the sleep.
+  if (Array.isArray(o.bed) && o.bed.length === 2) {
+    var bs = Number(o.bed[0]), be = Number(o.bed[1])
+    if (bs <= start && be >= end - 3600 && start - bs <= 4 * 3600 && be - end <= 4 * 3600) out.bed = [bs, be]
+  }
+  var hr = clampInt(o.hr, 30, 150)
+  if (hr !== null && o.hr !== undefined) out.hr = hr
+  // Hypnogram: [minutes after start, minutes long, kind], kinds 4 light, 5 deep, 7 awake, 8 REM.
+  if (Array.isArray(o.stages)) {
+    var span = Math.round((end - start) / 60), list = []
+    for (var j = 0; j < o.stages.length && list.length < 100; j++) {
+      var st = o.stages[j]
+      if (!Array.isArray(st) || st.length !== 3) continue
+      var off = clampInt(st[0], 0, span), len = clampInt(st[1], 1, span), kind = Number(st[2])
+      if (off === null || len === null || STAGE_KINDS.indexOf(kind) < 0 || off + len > span + 1) continue
+      list.push([off, len, kind])
+    }
+    if (list.length) out.stages = list
+  }
   // Measured minutes from lying down to sleep onset; bounded = only a minimum.
   var lat = o.latency === undefined || o.latency === null ? null : clampInt(o.latency, 0, 120)
   if (lat !== null) { out.latency = lat; out.latencyBounded = o.latencyBounded === true }
@@ -468,6 +487,40 @@ function parseNightList(text) {
     if (n) out.push(n)
   }
   return out
+}
+
+var STAGE_KINDS = [4, 5, 7, 8]
+
+// Minutes from going to bed to falling asleep, as the strap (and the Zepp app)
+// counts them; else the one measured from minute data. null when neither.
+function nightLatency(n) {
+  if (n.bed) return { minutes: Math.max(0, Math.round((n.start - n.bed[0]) / 60)), bounded: false }
+  if (n.latency !== undefined) return { minutes: n.latency, bounded: n.latencyBounded === true }
+  return null
+}
+
+// Share of the time in bed spent asleep, 0..100, or null.
+function efficiency(n) {
+  if (!n || !n.bed) return null
+  var inBed = (n.bed[1] - n.bed[0]) / 60
+  return inBed > 0 ? Math.min(100, Math.round(n.asleep / inBed * 100)) : null
+}
+
+// A night against the average of up to USUAL_NIGHTS nights before it.
+// null until CALIBRATE_NIGHTS of them; fields missing from too few nights stay null.
+var USUAL_NIGHTS = 28
+function usual(nights, night) {
+  if (!night) return null
+  var before = nights.filter(function(n) { return !n.nap && n.end <= night.start }).slice(-USUAL_NIGHTS)
+  if (before.length < CALIBRATE_NIGHTS) return null
+  function avg(f) {
+    var v = before.map(f).filter(function(x) { return x !== null && x !== undefined })
+    return v.length >= CALIBRATE_NIGHTS ? v.reduce(function(a, b) { return a + b }, 0) / v.length : null
+  }
+  return { nights: before.length,
+           asleep: avg(function(n) { return n.asleep }), deep: avg(function(n) { return n.deep }),
+           rem: avg(function(n) { return n.rem }), efficiency: avg(efficiency),
+           hr: avg(function(n) { return n.hr }) }
 }
 
 // Nights only, without the naps: bedtime, regularity and latency follow these.
@@ -667,14 +720,15 @@ function applyLatency(nights, list) {
   })
 }
 
-// Typical time to fall asleep: median over the last 14 days of nights whose
-// measurement is complete (not just a lower bound). null until CALIBRATE_NIGHTS.
+// Typical time to fall asleep: median over the last 14 days of nights, from the
+// strap's own bed and sleep times, else from minute data when that measurement is
+// complete (not just a lower bound). At most 2h. null until CALIBRATE_NIGHTS.
 function typicalLatency(nights, nowMs) {
-  var recent = recentNights(nights, nowMs, WINDOW_DAYS)
-  var full = recent.filter(function(n) { return n.latency !== undefined && !n.latencyBounded })
-  var measured = recent.filter(function(n) { return n.latency !== undefined }).length
-  return { minutes: full.length >= CALIBRATE_NIGHTS ? Math.round(median(full.map(function(n) { return n.latency }))) : null,
-           nights: full.length, measured: measured }
+  var lat = recentNights(nights, nowMs, WINDOW_DAYS).map(nightLatency).filter(function(l) { return l !== null })
+  var full = lat.filter(function(l) { return !l.bounded })
+  return { minutes: full.length >= CALIBRATE_NIGHTS
+             ? Math.min(120, Math.round(median(full.map(function(l) { return l.minutes })))) : null,
+           nights: full.length, measured: lat.length }
 }
 
 // ---------------------------------------------------------------------------

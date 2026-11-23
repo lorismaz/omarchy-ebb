@@ -4,7 +4,7 @@ const path = require("path")
 const assert = require("assert")
 
 const src = fs.readFileSync(path.join(__dirname, "..", "Model.js"), "utf8").replace(".pragma library", "")
-const M = new Function(src + "; return { parseLine, zoneFor, zoneBounds, normalizeMaxHr, emptyStats, addReading, average, pushPoint, rmssd, pushRR, formatDuration, batteryIcon, normalizeStepGoal, normalizeBarMode, goalProgress, parseClock, normalizeBedtime, formatClock, dayKey, minutesPastBedtime, freshDay, loadDay, withChanges, hoursMinutes, parseSleepNeed, normalizeWake, normalizeFallAsleep, bedtimeFor, sleepIfBedNow, SLEEP_NEEDS, parseNight, lastNight, mergeNights, parseNightList, debtBalance, circularStats, regularity, planNight, eveningAction, morningAction, localDateKey, scheduleFromDays, wakeTarget, targetMorning, WAKE_KEYS, applyLatency, typicalLatency, recordSteps, movedRecently, lastMoveInMinutes, mainNights, napsToday, moveAction, normalizeMoveEvery, normalizeMoveSteps, hourBars, autoView, clockSet, rebaseUnsetClock, minutesUntilBedtime, normalizeAddress, versionLess, MAX_POINTS, MAX_NAME };")()
+const M = new Function(src + "; return { parseLine, zoneFor, zoneBounds, normalizeMaxHr, emptyStats, addReading, average, pushPoint, rmssd, pushRR, formatDuration, batteryIcon, normalizeStepGoal, normalizeBarMode, goalProgress, parseClock, normalizeBedtime, formatClock, dayKey, minutesPastBedtime, freshDay, loadDay, withChanges, hoursMinutes, parseSleepNeed, normalizeWake, normalizeFallAsleep, bedtimeFor, sleepIfBedNow, SLEEP_NEEDS, parseNight, lastNight, mergeNights, parseNightList, debtBalance, circularStats, regularity, planNight, eveningAction, morningAction, localDateKey, scheduleFromDays, wakeTarget, targetMorning, WAKE_KEYS, applyLatency, typicalLatency, recordSteps, movedRecently, lastMoveInMinutes, mainNights, napsToday, nightLatency, efficiency, usual, moveAction, normalizeMoveEvery, normalizeMoveSteps, hourBars, autoView, clockSet, rebaseUnsetClock, minutesUntilBedtime, normalizeAddress, versionLess, MAX_POINTS, MAX_NAME };")()
 
 // Heart rate lines
 let ev = M.parseLine('{"t":"hr","bpm":72,"contact":null,"rr":[812,830]}')
@@ -189,6 +189,33 @@ assert.strictEqual(M.mainNights(withNap).length, ns.length)
 assert.deepStrictEqual(M.napsToday(withNap, NOW), [nap])
 assert.deepStrictEqual(M.napsToday(withNap, NOW + 86400000), [])
 assert.strictEqual(M.lastNight(M.mainNights(withNap), NOW).nap, undefined)
+// hypnogram, bed times, heart rate asleep
+const sNight = { start: 1800000000, end: 1800000000 + 480 * 60, asleep: 450, deep: 90, light: 250, rem: 110, awake: 30, score: 80 }
+const full = M.parseNight({ ...sNight, bed: [sNight.start - 1200, sNight.end + 600], hr: 58,
+  stages: [[0, 60, 4], [60, 90, 5], [150, 330, 8], "x", [0, 5, 99], [470, 50, 4]] })
+assert.deepStrictEqual(full.bed, [sNight.start - 1200, sNight.end + 600])
+assert.strictEqual(full.hr, 58)
+assert.deepStrictEqual(full.stages, [[0, 60, 4], [60, 90, 5], [150, 330, 8]])   // junk, unknown kinds and overruns dropped
+assert.strictEqual(M.parseNight({ ...sNight, bed: [sNight.start + 60, sNight.end] }).bed, undefined)   // must frame the sleep
+assert.strictEqual(M.parseNight({ ...sNight, hr: 300 }).hr, undefined)
+assert.deepStrictEqual(M.nightLatency(full), { minutes: 20, bounded: false })
+assert.deepStrictEqual(M.nightLatency({ ...sNight, latency: 12, latencyBounded: true }), { minutes: 12, bounded: true })
+assert.strictEqual(M.nightLatency(sNight), null)
+assert.strictEqual(M.efficiency(full), Math.round(450 / 510 * 100))
+assert.strictEqual(M.efficiency(sNight), null)
+// usual: the average of the nights before, once there are 5
+const past = [0, 1, 2, 3, 4].map(i => ({ ...sNight, start: sNight.start - (i + 1) * 86400, end: sNight.end - (i + 1) * 86400, asleep: 400 + 10 * i, hr: 60 }))
+assert.strictEqual(M.usual(past.slice(0, 4).concat([full]), full), null)
+const u = M.usual(past.concat([full]), full)
+assert.strictEqual(u.nights, 5); assert.strictEqual(u.asleep, 420); assert.strictEqual(u.hr, 60)
+assert.strictEqual(u.efficiency, null)                                          // no bed times in the past nights
+// a fortnight of nights with full hypnograms still fits on one line
+const bigNight = { ...sNight, bed: [sNight.start - 600, sNight.end], hr: 60,
+  stages: Array.from({ length: 50 }, (_, i) => [i * 9, 9, [4, 5, 8, 7][i % 4]]) }
+const bigEv = JSON.stringify({ t: "sleep", nights: Array.from({ length: 14 }, (_, i) => ({ ...bigNight, start: bigNight.start - i * 86400, end: bigNight.end - i * 86400, bed: [bigNight.bed[0] - i * 86400, bigNight.bed[1] - i * 86400] })) })
+assert.ok(bigEv.length > 2048)
+assert.strictEqual(M.parseLine(bigEv).nights.length, 14)
+assert.strictEqual(M.parseLine("x".repeat(70000)), null)
 // surplus cannot be banked before a debt exists (floor at 0 every night)
 assert.strictEqual(M.debtBalance([night(3, 21, 0, 600), night(1, 23, 0, 420)], 480, NOW).minutes, Math.round(60 * 0.93))
 assert.strictEqual(M.debtBalance([], 480, NOW).minutes, 0)

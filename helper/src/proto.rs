@@ -232,8 +232,43 @@ pub struct Night {
     pub deep: u16,
     pub awake: u16,
     pub score: u8,
-    /// A nap from the report's nap list: `minutes` asleep, no stages.
+    /// A nap from the report's nap list: `minutes` asleep.
     pub nap: Option<u16>,
+    /// Went to bed, got up (epoch s): the night only.
+    pub bed: Option<(i64, i64)>,
+    /// Average heart rate asleep: the night only.
+    pub hr: Option<u8>,
+    /// The hypnogram, in time order.
+    pub stages: Vec<Stage>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Stage {
+    pub start: i64,
+    /// Exclusive.
+    pub end: i64,
+    pub kind: u8,
+}
+
+pub const LIGHT: u8 = 4;
+pub const DEEP: u8 = 5;
+pub const AWAKE: u8 = 7;
+pub const REM: u8 = 8;
+/// In the second table: the time between the night and a nap.
+const GAP: u8 = 128;
+const STAGES_PER_TABLE: usize = 50;
+
+/// (start, end-inclusive, kind) entries in minutes from `base`, as epoch stages.
+fn stage_table(r: &[u8], at: usize, count: u8, base: i64) -> Vec<Stage> {
+    r[at..at + 5 * STAGES_PER_TABLE]
+        .chunks_exact(5)
+        .take((count as usize).min(STAGES_PER_TABLE))
+        .filter_map(|e| {
+            let from = u16::from_le_bytes([e[0], e[1]]) as i64;
+            let to = u16::from_le_bytes([e[2], e[3]]) as i64;
+            (to >= from && to - from <= 24 * 60).then_some(Stage { start: base + from * 60, end: base + (to + 1) * 60, kind: e[4] })
+        })
+        .collect()
 }
 
 impl Night {
@@ -254,22 +289,34 @@ fn naps(r: &[u8]) -> Vec<Night> {
     let (Some(written), Some(midnight)) = (u32_at(r, 0x00), u32_at(r, 0x04)) else { return Vec::new() };
     let previous_midnight = midnight as i64 - 24 * 3600;
     let count = (r[0x17] as usize).min(MAX_NAPS);
+    let second = stage_table(r, 0x150, r[0x55], previous_midnight);
     r[0x18..0x18 + 6 * count]
         .chunks_exact(6)
         .filter_map(|n| {
             let from = u16::from_le_bytes([n[0], n[1]]) as i64;
             let to = u16::from_le_bytes([n[2], n[3]]) as i64;
             let minutes = u16::from_le_bytes([n[4], n[5]]);
-            (to > from && to - from <= 6 * 60 && minutes > 0 && minutes as i64 <= to - from + 1).then(|| Night {
+            if !(to > from && to - from <= 6 * 60 && minutes > 0 && minutes as i64 <= to - from + 1) {
+                return None;
+            }
+            let (start, end) = (previous_midnight + from * 60, previous_midnight + (to + 1) * 60); // `to` is the last minute
+            // The second table holds the day's nap stages between gaps.
+            let stages: Vec<Stage> =
+                second.iter().copied().filter(|st| st.kind != GAP && st.start >= start && st.end <= end).collect();
+            let sum = |k: u8| stages.iter().filter(|st| st.kind == k).map(|st| (st.end - st.start) / 60).sum::<i64>() as u16;
+            Some(Night {
                 written,
-                start: previous_midnight + from * 60,
-                end: previous_midnight + (to + 1) * 60, // `to` is the last minute, as for stages
-                rem: 0,
-                light: 0,
-                deep: 0,
-                awake: 0,
+                start,
+                end,
+                rem: sum(REM),
+                light: sum(LIGHT),
+                deep: sum(DEEP),
+                awake: sum(AWAKE),
                 score: 0,
                 nap: Some(minutes),
+                bed: None,
+                hr: None,
+                stages,
             })
         })
         .collect()
@@ -279,16 +326,19 @@ fn night(r: &[u8]) -> Option<Night> {
     let written = u32_at(r, 0x00)?;
     let midnight = u32_at(r, 0x04)? as i64;
     let previous_midnight = midnight - 24 * 3600;
-    let stages = (r[0x54] as usize).min((0x24A - 0x56) / 5);
-    let (mut start, mut end) = (i64::MAX, i64::MIN);
-    for s in r[0x56..].chunks_exact(5).take(stages) {
-        let (from, to) = (u16::from_le_bytes([s[0], s[1]]) as i64, u16::from_le_bytes([s[2], s[3]]) as i64);
-        if to < from || to - from > 24 * 60 {
-            continue;
+    let stages = stage_table(r, 0x56, r[0x54], previous_midnight);
+    let start = stages.iter().map(|s| s.start).min()?;
+    let end = stages.iter().map(|s| s.end).max()?;
+    // In bed and up again, in minutes like the stages; only if they frame the sleep.
+    let bed = match (u16_at(r, 0x0e), u16_at(r, 0x10)) {
+        (Some(a), Some(b)) => {
+            // Like the sleep's own end at 0x0c, the get-up minute is exclusive.
+            let (a, b) = (previous_midnight + a as i64 * 60, previous_midnight + b as i64 * 60);
+            (a <= start && b >= end - 60 && start - a <= 4 * 3600 && b - end <= 4 * 3600).then_some((a, b))
         }
-        start = start.min(previous_midnight + from * 60);
-        end = end.max(previous_midnight + (to + 1) * 60);
-    }
+        _ => None,
+    };
+    let hr = r[0x15];
     (start < end).then(|| Night {
         written,
         start,
@@ -299,6 +349,9 @@ fn night(r: &[u8]) -> Option<Night> {
         awake: u16_at(r, 0x250).unwrap_or(0),
         score: r[0x16],
         nap: None,
+        bed,
+        hr: (30..=150).contains(&hr).then_some(hr),
+        stages,
     })
 }
 
@@ -478,6 +531,49 @@ mod tests {
             r[0x24A + 2 * i..0x24C + 2 * i].copy_from_slice(&t.to_le_bytes());
         }
         r
+    }
+
+    #[test]
+    fn hypnogram_bed_and_heart_rate() {
+        let mid: u32 = 1_795_215_600;
+        let base = mid as i64 - 86_400;
+        let mut r = record(mid + 30_000, mid, &[(1320, 1379, 4), (1380, 1679, 5), (1680, 1769, 8)], [90, 60, 300, 0]);
+        r[0x0e..0x10].copy_from_slice(&1300u16.to_le_bytes()); // in bed 20 min before sleep
+        r[0x10..0x12].copy_from_slice(&1775u16.to_le_bytes()); // up 5 min after
+        let n = &nights(&r)[0];
+        assert_eq!(n.bed, Some((base + 1300 * 60, base + 1775 * 60)));
+        assert_eq!(n.hr, Some(58));
+        assert_eq!(n.stages.iter().map(|s| (s.kind, (s.end - s.start) / 60)).collect::<Vec<_>>(), [(4, 60), (5, 300), (8, 90)]);
+        // bed times that do not frame the sleep are dropped
+        r[0x0e..0x10].copy_from_slice(&1400u16.to_le_bytes());
+        assert_eq!(nights(&r)[0].bed, None);
+        // a stage count past the 50-entry table is capped, never read into the second table
+        r[0x54] = 200;
+        assert!(nights(&r)[0].stages.len() <= STAGES_PER_TABLE);
+        r[0x15] = 0;
+        r[0x54] = 3;
+        assert_eq!(nights(&r)[0].hr, None);
+    }
+
+    #[test]
+    fn nap_stages_from_the_second_table() {
+        let mid: u32 = 1_795_215_600;
+        let mut r = record(mid + 30_000, mid, &[(1320, 1379, 4)], [0, 60, 0, 0]);
+        r[0x17] = 1;
+        r[0x18..0x1a].copy_from_slice(&2290u16.to_le_bytes());
+        r[0x1a..0x1c].copy_from_slice(&2319u16.to_le_bytes());
+        r[0x1c..0x1e].copy_from_slice(&30u16.to_le_bytes());
+        let second = [(1380u16, 2289u16, 128u8), (2290, 2299, 4), (2300, 2309, 5), (2310, 2319, 4), (2320, 2400, 128)];
+        r[0x55] = second.len() as u8;
+        for (i, (s, e, k)) in second.iter().enumerate() {
+            let at = 0x150 + 5 * i;
+            r[at..at + 2].copy_from_slice(&s.to_le_bytes());
+            r[at + 2..at + 4].copy_from_slice(&e.to_le_bytes());
+            r[at + 4] = *k;
+        }
+        let nap = nights(&r).into_iter().find(|n| n.nap.is_some()).unwrap();
+        assert_eq!((nap.light, nap.deep, nap.stages.len()), (20, 10, 3), "gaps are not stages");
+        assert_eq!((nap.bed, nap.hr), (None, None));
     }
 
     #[test]
