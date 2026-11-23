@@ -5,9 +5,10 @@ import "banner.js" as Banner
 // Ebb's intro, in Omarchy's own visual language: the name in the block letters
 // of the Omarchy logo, decrypted like the screensaver's text effects and crossed
 // by the About screen's 45-degree sheen; under it a tide that flows in (the day,
-// moving) and ebbs out (the night, resting) in time with the music, a ripple
-// running across it on every heartbeat; then a terminal line typing the
-// credits. Theme colours in, nothing else. Any key or click ends it.
+// moving: sunrise colours) and ebbs out (the night, resting: night colours and
+// stars) in time with the music, a ripple running across it on every
+// heartbeat; then a terminal line typing the credits. The rest follows the
+// theme. Any key or click ends it.
 Item {
   id: root
 
@@ -70,11 +71,27 @@ Item {
 
     property var cells: []          // banner cells: {r, c, ch, appear, reveal}
     property int cols: 0
+    property var stars: []          // night sky over the tide: {x, y, tw}
+
+    // Flow wears sunrise and sunset, ebb the night: crest, surface, depth, floor.
+    readonly property var dayWater: [[255, 222, 150], [255, 160, 95], [238, 98, 112], [150, 52, 112]]
+    readonly property var nightWater: [[208, 218, 255], [112, 132, 232], [58, 74, 172], [22, 30, 88]]
+
+    function mix(a, b, k) { return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k] }
+    function rgba(c, a) { return Qt.rgba(c[0] / 255, c[1] / 255, c[2] / 255, a === undefined ? 1 : a) }
+    // Colour at depth d (0 surface .. 1 floor) of a sea that is `day` (0..1) daylit.
+    function water(day, d) {
+      const i = Math.min(2, Math.floor(d * 2.999)), k = d * 2.999 - i
+      return mix(mix(nightWater[i + 1], dayWater[i + 1], day), mix(nightWater[Math.min(3, i + 2)], dayWater[Math.min(3, i + 2)], day), k)
+    }
 
     function hex(c, a) { return Qt.rgba(c.r, c.g, c.b, a === undefined ? 1 : a) }
 
     function build() {
       cells = []
+      stars = []
+      for (let i = 0; i < 26; i++)
+        stars.push({ x: Math.random() * span, y: Math.random(), tw: Math.random() * 6.28 })
       cols = 0
       for (let r = 0; r < root.rows.length; r++) {
         const line = root.rows[r]
@@ -137,6 +154,22 @@ Item {
       const rising = Math.sin(phase) >= 0
       const fill = Math.min(1, t / decryptEnd)                         // the water comes in with the logo
       const level = (0.5 - 0.3 * Math.cos(phase)) * fill
+      const s0 = (Math.sin(phase) + 1) / 2
+      const day = s0 * s0 * (3 - 2 * s0)                              // 1 while it flows in, 0 while it ebbs out
+      const skyTop = ty0 - 2 * ch, skyH = tideRows * ch + 2 * ch
+      // Sky behind the water: a sunrise glow as it flows, moonlight as it ebbs, stars at night.
+      const glow = ctx.createLinearGradient(0, skyTop, 0, skyTop + skyH)
+      const g = mix([80, 100, 210], [255, 140, 90], day)
+      glow.addColorStop(0, rgba(g, 0))
+      glow.addColorStop(1, rgba(g, (0.16 + 0.16 * day) * fill))
+      ctx.fillStyle = glow
+      ctx.fillRect(gx, skyTop, span * cw, skyH)
+      for (const st of stars) {
+        const a = (1 - day) * fill * (0.35 + 0.35 * Math.sin(t * 2 + st.tw))
+        if (a <= 0.02) continue
+        ctx.fillStyle = rgba(nightWater[0], a)
+        ctx.fillRect(gx + Math.floor(st.x) * cw + cw / 2 - 1, skyTop + st.y * (skyH * 0.55), 2, 2)
+      }
       const pulse = (beat / 2) % 1                                    // a heartbeat every two beats
       const at = pulse * span * 1.3 - span * 0.15
       for (let c = 0; c < span; c++) {
@@ -146,8 +179,8 @@ Item {
         for (let l = 0; l < n; l++) {
           const crest = l === n - 1
           ctx.fillStyle = crest && ripple > 0.05 ? "#ffffff"
-                        : crest ? root.foreground
-                        : hex(root.accent, 0.25 + 0.6 * (l + 1) / levels)
+                        : crest ? rgba(mix(nightWater[0], dayWater[0], day))
+                        : rgba(water(day, 1 - l / Math.max(1, n - 1)))
           ctx.fillRect(gx + c * cw, ty0 + (levels - 1 - l) * ch / 2, cw, ch / 2)
         }
       }
@@ -156,7 +189,7 @@ Item {
       if (t > decryptEnd) {
         ctx.font = Math.round(ch * 0.7) + "px \"" + root.fontFamily + "\""
         ctx.textAlign = "right"
-        ctx.fillStyle = hex(root.muted, 0.9)
+        ctx.fillStyle = rgba(mix(nightWater[0], dayWater[1], day), 0.85)
         ctx.fillText((rising ? "↑ " : "↓ ") + (rising ? root.flowLabel : root.ebbLabel), gx + span * cw, ty0 - ch * 0.4)
       }
 
