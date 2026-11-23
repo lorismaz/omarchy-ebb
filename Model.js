@@ -121,6 +121,20 @@ function parseLine(line) {
     }
     return { type: "minutes", from: from * 1000, steps: per }
   }
+  if (obj.t === "recovery") {
+    if (!Array.isArray(obj.nights)) return null
+    var rec = []
+    for (var q = 0; q < obj.nights.length && rec.length < 31; q++) {
+      var o = obj.nights[q]
+      if (!o || typeof o !== "object") continue
+      var s0 = Number(o.start)
+      if (!(s0 > 1577836800 && s0 < 4102444800)) continue
+      var item = recoveryFields(o)
+      item.start = s0
+      rec.push(item)
+    }
+    return { type: "recovery", nights: rec }
+  }
   if (obj.t === "latency") {
     if (!Array.isArray(obj.nights)) return null
     var list = []
@@ -398,6 +412,8 @@ function parseNight(o) {
   out.score = score === null ? 0 : score
   // A nap from the strap's nap list: counts as sleep, but is not a night.
   if (o.nap === true) out.nap = true
+  var rf = recoveryFields(o)
+  for (var rk in rf) out[rk] = rf[rk]
   // In bed / up again (epoch s), only when they frame the sleep.
   if (Array.isArray(o.bed) && o.bed.length === 2) {
     var bs = Number(o.bed[0]), be = Number(o.bed[1])
@@ -457,13 +473,19 @@ function addDays(key, n) {
 // Keep a local history beyond the strap's ~8 nights: fresh nights replace
 // stored ones they overlap; anything older than KEEP_DAYS is dropped.
 function mergeNights(stored, fresh, nowMs) {
-  // A re-fetched night keeps the latency measured for it earlier.
+  // A re-fetched night keeps what was measured for it earlier: its latency
+  // and its recovery, which arrive in their own events.
   fresh = fresh.map(function(f) {
-    if (f.latency !== undefined) return f
     for (var i = 0; i < (stored || []).length; i++) {
       var o = stored[i]
-      if (o.start === f.start && o.latency !== undefined)
-        return withChanges(f, { latency: o.latency, latencyBounded: o.latencyBounded })
+      if (o.start !== f.start) continue
+      var keep = {}
+      if (f.latency === undefined && o.latency !== undefined) { keep.latency = o.latency; keep.latencyBounded = o.latencyBounded }
+      for (var j = 0; j < RECOVERY_KEYS.length; j++) {
+        var k = RECOVERY_KEYS[j]
+        if (f[k] === undefined && o[k] !== undefined) keep[k] = o[k]
+      }
+      return withChanges(f, keep)
     }
     return f
   })
@@ -490,6 +512,42 @@ function parseNightList(text) {
 }
 
 var STAGE_KINDS = [4, 5, 7, 8]
+
+// The night's recovery, from the strap's own history: HRV (ms), resting heart
+// rate (bpm), breaths a minute, skin temperature (°C). Each only when plausible.
+var RECOVERY = { hrv: [5, 250], rhr: [30, 120], breath: [4, 40], temp: [25, 42] }
+var RECOVERY_KEYS = ["hrv", "rhr", "breath", "temp"]
+function recoveryFields(o) {
+  var out = {}
+  for (var i = 0; i < RECOVERY_KEYS.length; i++) {
+    var k = RECOVERY_KEYS[i], v = Number(o[k])
+    if (o[k] !== undefined && o[k] !== null && isFinite(v) && v >= RECOVERY[k][0] && v <= RECOVERY[k][1])
+      out[k] = Math.round(v * 100) / 100
+  }
+  return out
+}
+
+function applyRecovery(nights, list) {
+  return nights.map(function(n) {
+    for (var i = 0; i < list.length; i++)
+      if (list[i].start === n.start && !n.nap) {
+        var r = withChanges({}, list[i]); delete r.start
+        return withChanges(n, r)
+      }
+    return n
+  })
+}
+
+// Recovery against the usual nights: "low" when HRV is 15% or more under its
+// usual, or resting heart rate 4 bpm or more over it; "good" otherwise; null
+// without a usual to compare with.
+function recoveryStatus(night, u) {
+  if (!night || !u) return null
+  var low = (night.hrv !== undefined && u.hrv !== null && night.hrv <= u.hrv * 0.85)
+         || (night.rhr !== undefined && u.rhr !== null && night.rhr >= u.rhr + 4)
+  if (low) return "low"
+  return (night.hrv !== undefined && u.hrv !== null) || (night.rhr !== undefined && u.rhr !== null) ? "good" : null
+}
 
 // Minutes from going to bed to falling asleep, as the strap (and the Zepp app)
 // counts them; else the one measured from minute data. null when neither.
@@ -520,7 +578,9 @@ function usual(nights, night) {
   return { nights: before.length,
            asleep: avg(function(n) { return n.asleep }), deep: avg(function(n) { return n.deep }),
            rem: avg(function(n) { return n.rem }), efficiency: avg(efficiency),
-           hr: avg(function(n) { return n.hr }) }
+           hr: avg(function(n) { return n.hr }),
+           hrv: avg(function(n) { return n.hrv }), rhr: avg(function(n) { return n.rhr }),
+           breath: avg(function(n) { return n.breath }), temp: avg(function(n) { return n.temp }) }
 }
 
 // Nights only, without the naps: bedtime, regularity and latency follow these.
@@ -633,18 +693,22 @@ function round15(m) { return Math.round(m / 15) * 15 }
 // Tonight's plan. Time in bed = need + payback + time to fall asleep + the
 // typical time awake during the night. Payback spreads debt over ~4 nights
 // (max 60 min), and never puts bedtime more than an hour before the usual one.
-function planNight(wake, need, fallAsleep, nights, debtMinutes, nowMs) {
+function planNight(wake, need, fallAsleep, nights, debtMinutes, nowMs, recoveryExtra) {
   var recent = recentNights(nights, nowMs, WINDOW_DAYS)
   var waso = recent.length ? Math.max(0, Math.min(60, Math.round(median(recent.map(function(n) { return n.awake }))))) : 0
   var week = recentNights(nights, nowMs, 7)
   var habitual = week.length >= 3 ? Math.round(circularStats(week.map(function(n) { return clockOf(n.start) })).mean) : null
   var base = need + fallAsleep + waso
   var payback = debtMinutes < 120 ? 0 : Math.min(round15(debtMinutes / 4), 60)
+  // After a night of poor recovery, earlier still (within the same hour's cap).
+  var extra = recoveryExtra > 0 ? Math.min(recoveryExtra, 60 - payback) : 0
+  payback += extra
   if (habitual !== null) {
     var habitualBeforeWake = ((wake - habitual) % 1440 + 1440) % 1440
     payback = Math.max(0, Math.min(payback, Math.floor((habitualBeforeWake + 60 - base) / 15) * 15))
   }
-  return { bedtime: ((wake - base - payback) % 1440 + 1440) % 1440, payback: payback, waso: waso, habitual: habitual }
+  return { bedtime: ((wake - base - payback) % 1440 + 1440) % 1440, payback: payback, waso: waso, habitual: habitual,
+           recovery: Math.min(extra, payback) }
 }
 
 // Evening sequence: wind-down at -60 min, bedtime notice, reminders at +30

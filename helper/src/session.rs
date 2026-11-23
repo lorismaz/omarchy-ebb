@@ -4,7 +4,7 @@
 //! Pure state: callers feed frames, bulk packets and clock ticks in, and get
 //! back frames to write and JSON events to print.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
 use chrono::{DateTime, FixedOffset, Local, TimeZone};
@@ -49,7 +49,16 @@ pub enum Phase {
 enum What {
     Sleep,
     Minutes,
+    /// HRV, resting heart rate, breathing or skin temperature.
+    History(u8),
 }
+
+/// Recovery history fetched after the nights, in this order.
+const HISTORY: [u8; 4] = [proto::KIND_HRV, proto::KIND_RESTING_HR, proto::KIND_BREATHING, proto::KIND_TEMPERATURE];
+/// How far back recovery is fetched: the strap's last eight nights on the first
+/// sync (enough for a usual to compare with), then the last two days.
+const RECOVERY_FIRST_DAYS: i64 = 8;
+const RECOVERY_DAYS: i64 = 2;
 
 struct Transfer {
     what: What,
@@ -64,6 +73,13 @@ pub struct Session {
     /// Downloads keep failing: the caller should drop and rebuild the link.
     pub wants_reconnect: bool,
     failures: u8,
+    /// An open transfer was closed after a "busy" refusal; once per good download.
+    cleared_busy: bool,
+    /// Recovery types still to fetch, what came back, and the nights they are for.
+    history: Vec<u8>,
+    got: HashMap<u8, (i64, Vec<u8>)>,
+    recent: Vec<(i64, i64)>,
+    recovery_filled: bool,
     pub began: Instant,
     /// The proof is sent: a later challenge is someone else's handshake.
     answered: bool,
@@ -98,6 +114,11 @@ impl Session {
             answered: false,
             wants_reconnect: false,
             failures: 0,
+            cleared_busy: false,
+            history: Vec::new(),
+            got: HashMap::new(),
+            recent: Vec::new(),
+            recovery_filled: false,
             mtu,
             curve,
             private,
@@ -233,8 +254,13 @@ impl Session {
                 return;
             }
             crate::debug("download timed out");
+            let history = self.transfer.as_ref().is_some_and(|t| matches!(t.what, What::History(_)));
             self.transfer = None;
             self.failed();
+            if history {
+                self.next_history(out, now);
+                return;
+            }
         }
         if self.last_sleep.is_some_and(|t| now.duration_since(t) < SLEEP_EVERY) {
             return;
@@ -274,9 +300,37 @@ impl Session {
             }
             FetchReply::Refused { command, status } => {
                 crate::debug(&format!("download refused: command {command:02x} status {status:02x}"));
+                let kind = match t.what {
+                    What::History(k) => Some(k),
+                    _ => None,
+                };
                 self.transfer = None;
-                self.last_sleep = Some(now);
-                self.failed();
+                if command == 0x01 && status == proto::FETCH_BUSY && !self.cleared_busy {
+                    // A transfer left open, by a helper stopped mid-download: close it,
+                    // keeping the data on the strap, and ask again once.
+                    crate::debug("strap busy with an open transfer: closing it");
+                    self.cleared_busy = true;
+                    self.send(out, proto::EP_FETCH, proto::FETCH_DONE_KEEP, enc);
+                    match kind {
+                        Some(k) => {
+                            self.history.insert(0, k);
+                            self.next_history(out, now);
+                        }
+                        None => {
+                            self.last_sleep = None;
+                            self.maybe_fetch_sleep(out, now, Local::now().fixed_offset());
+                        }
+                    }
+                    return;
+                }
+                match kind {
+                    // A strap without this history type: go on with the next.
+                    Some(_) => self.next_history(out, now),
+                    None => {
+                        self.last_sleep = Some(now);
+                        self.failed();
+                    }
+                }
             }
             FetchReply::Acked => {}
         }
@@ -294,12 +348,19 @@ impl Session {
         let Some(t) = self.transfer.take() else { return };
         if ok {
             self.failures = 0;
+            self.cleared_busy = false;
         } else {
             self.failed();
         }
         let enc = self.fetch_encrypted.unwrap_or(false);
         self.send(out, proto::EP_FETCH, proto::FETCH_DONE_KEEP, enc);
         match t.what {
+            What::History(kind) => {
+                if let (true, Some(from)) = (ok, t.from) {
+                    self.got.insert(kind, (from, t.data.data));
+                }
+                self.next_history(out, now);
+            }
             What::Sleep => {
                 self.last_sleep = Some(now);
                 if ok {
@@ -331,8 +392,75 @@ impl Session {
                     }
                 }
                 self.waiting_onsets.clear();
+                self.history = HISTORY.to_vec();
+                self.got.clear();
+                self.next_history(out, now);
             }
         }
+    }
+
+    /// Fetch the next recovery type, or report the nights once all are in.
+    fn next_history(&mut self, out: &mut Vec<Out>, now: Instant) {
+        if self.transfer.is_some() {
+            return;
+        }
+        let local = Local::now().fixed_offset();
+        let days = if self.recovery_filled { RECOVERY_DAYS } else { RECOVERY_FIRST_DAYS };
+        let horizon = local.timestamp() - days * 86_400;
+        let Some(&(first, _)) = self.recent.iter().find(|(_, end)| *end >= horizon) else {
+            self.history.clear();
+            return;
+        };
+        if !self.history.is_empty() {
+            let kind = self.history.remove(0);
+            let since = local.offset().timestamp_opt(first - 3600, 0).single().unwrap_or(local);
+            self.download(out, What::History(kind), kind, &since, now);
+            return;
+        }
+        if self.got.is_empty() {
+            return;
+        }
+        let ahead = local.timestamp() + AHEAD;
+        let take = |k: u8, f: fn(&[u8]) -> Vec<(i64, f32)>, got: &HashMap<u8, (i64, Vec<u8>)>| {
+            got.get(&k).map(|(_, d)| f(d)).unwrap_or_default().into_iter().filter(|(t, _)| *t <= ahead).collect::<Vec<_>>()
+        };
+        let hrv = take(proto::KIND_HRV, proto::hrv, &self.got);
+        let rhr = take(proto::KIND_RESTING_HR, proto::resting_hr, &self.got);
+        let breath = take(proto::KIND_BREATHING, proto::breathing, &self.got);
+        let temp: Vec<(i64, f32)> = self
+            .got
+            .get(&proto::KIND_TEMPERATURE)
+            .map(|(from, d)| proto::skin_temperature(*from, d))
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|(t, _)| *t <= ahead)
+            .collect();
+        self.got.clear();
+        let nights: Vec<(i64, i64)> = self.recent.iter().copied().filter(|(_, end)| *end >= horizon).collect();
+        let list: Vec<Value> = proto::recovery(&nights, &hrv, &rhr, &breath, &temp)
+            .iter()
+            .map(|r| {
+                let mut v = json!({"start": r.start});
+                let round = |x: f32| (x * 10.0).round() / 10.0;
+                if let Some(x) = r.hrv {
+                    v["hrv"] = round(x).into();
+                }
+                if let Some(x) = r.resting_hr {
+                    v["rhr"] = round(x).into();
+                }
+                if let Some(x) = r.breathing {
+                    v["breath"] = round(x).into();
+                }
+                if let Some(x) = r.temperature {
+                    v["temp"] = ((x * 100.0).round() / 100.0).into();
+                }
+                v
+            })
+            .collect();
+        if !list.is_empty() {
+            out.push(Out::Event(json!({"t": "recovery", "nights": list})));
+        }
+        self.recovery_filled = true;
     }
 
     /// Report the nights, then fetch minute data from midnight (steps per hour)
@@ -373,6 +501,7 @@ impl Session {
         out.push(Out::Event(json!({"t": "sleep", "nights": list})));
 
         let now_epoch = local.timestamp();
+        self.recent = recent.iter().filter(|n| n.nap.is_none() && n.end <= now_epoch).map(|n| (n.start, n.end)).collect();
         self.waiting_onsets = recent
             .iter()
             .filter(|n| n.nap.is_none() && n.end <= now_epoch && !self.measured.contains(&n.start))
@@ -540,6 +669,24 @@ mod tests {
         let unset = FixedOffset::east_opt(0).unwrap().timestamp_opt(0, 0).unwrap();
         s.maybe_fetch_sleep(&mut out, Instant::now(), unset);
         assert!(s.transfer.is_none() && out.is_empty());
+    }
+
+    #[test]
+    fn a_busy_strap_gets_its_open_transfer_closed_once() {
+        let key = [0x11; 16];
+        let (mut s, mut strap, _) = handshake(key, key);
+        s.can_fetch = true;
+        let t0 = Instant::now();
+        let out = feed(&mut s, strap.say(proto::EP_SERVICES, &[4, 2, 0, 0x16, 0, 0, 0x4b, 0, 0], false), t0);
+        assert!(strap.read(&out).iter().any(|(e, p)| *e == proto::EP_FETCH && p[..2] == [1, proto::KIND_SLEEP]));
+        let out = feed(&mut s, strap.say(proto::EP_FETCH, &[0x10, 0x01, proto::FETCH_BUSY], false), t0);
+        let sent = strap.read(&out);
+        assert_eq!(sent[0], (proto::EP_FETCH, proto::FETCH_DONE_KEEP.to_vec()), "closes the open transfer");
+        assert_eq!(sent[1].1[..2], [1, proto::KIND_SLEEP], "and asks again");
+        // busy again: no loop, it waits for the next hour
+        let out = feed(&mut s, strap.say(proto::EP_FETCH, &[0x10, 0x01, proto::FETCH_BUSY], false), t0);
+        assert!(strap.read(&out).is_empty());
+        assert!(s.transfer.is_none() && s.last_sleep.is_some());
     }
 
     #[test]

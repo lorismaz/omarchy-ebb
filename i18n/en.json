@@ -173,5 +173,17 @@
   "usual.deep": "deep %1",
   "usual.rem": "REM %1",
   "usual.efficiency": "efficiency %1",
-  "usual.hr": "heart rate %1"
+  "usual.hr": "heart rate %1",
+  "recovery.title": "Recovery:",
+  "recovery.hrv": "HRV %1 ms",
+  "recovery.rhr": "resting %1 bpm",
+  "recovery.breath": "breathing %1/min",
+  "recovery.good": "in your usual range",
+  "recovery.low": "Below your usual: HRV down or resting heart rate up. Tonight's bedtime is earlier.",
+  "usual.hrv": "HRV %1 ms",
+  "usual.rhr": "resting HR %1",
+  "usual.breath": "breathing %1",
+  "usual.temp": "skin %1 °C",
+  "tonight.recovery": "%1 earlier because last night's recovery was low",
+  "notify.recovery": "And %1 earlier: last night's recovery was low."
 }

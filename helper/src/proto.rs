@@ -145,6 +145,8 @@ pub const KIND_SLEEP: u8 = 0x48;
 pub const KIND_MINUTES: u8 = 0x01;
 pub const FETCH_SEND: &[u8] = &[0x02];
 pub const FETCH_DONE_KEEP: &[u8] = &[0x03, 0x09];
+/// Start refused: a transfer is still open (never acknowledged).
+pub const FETCH_BUSY: u8 = 0x05;
 
 pub fn time8(t: &DateTime<FixedOffset>) -> [u8; 8] {
     use chrono::{Datelike, Timelike};
@@ -438,9 +440,100 @@ pub fn recent_minutes(first_minute: i64, data: &[u8], since: i64) -> (i64, Vec<u
     (first_minute + 60 * skip, steps)
 }
 
+// ---- Recovery history (§2.8) ----
+
+pub const KIND_HRV: u8 = 0x49;
+pub const KIND_RESTING_HR: u8 = 0x3a;
+pub const KIND_BREATHING: u8 = 0x38;
+pub const KIND_TEMPERATURE: u8 = 0x2e;
+
+/// Timestamped records: `time:u32, utc_offset:i8` (quarter hours), then the value.
+fn stamped(data: &[u8], size: usize, value: impl Fn(&[u8]) -> Option<f32>) -> Vec<(i64, f32)> {
+    data.chunks_exact(size).filter_map(|r| Some((u32_at(r, 0)? as i64, value(&r[5..])?))).collect()
+}
+
+/// HRV in ms, one a minute while asleep.
+pub fn hrv(data: &[u8]) -> Vec<(i64, f32)> {
+    stamped(data, 6, |v| (5..=250).contains(&v[0]).then_some(v[0] as f32))
+}
+
+/// Resting heart rate, one a day.
+pub fn resting_hr(data: &[u8]) -> Vec<(i64, f32)> {
+    stamped(data, 6, |v| (30..=120).contains(&v[0]).then_some(v[0] as f32))
+}
+
+/// Breaths a minute, one a minute while asleep: `rate:u16, flag:u8`.
+pub fn breathing(data: &[u8]) -> Vec<(i64, f32)> {
+    stamped(data, 8, |v| {
+        let r = u16::from_le_bytes([v[0], v[1]]);
+        (4..=40).contains(&r).then_some(r as f32)
+    })
+}
+
+/// Skin temperature in °C, one 8-byte sample a minute from `first_minute`:
+/// `?:i16` (0x7fff), `celsius × 100:u16`, 4 bytes.
+pub fn skin_temperature(first_minute: i64, data: &[u8]) -> Vec<(i64, f32)> {
+    data.chunks_exact(8)
+        .enumerate()
+        .filter_map(|(i, m)| {
+            let c = u16::from_le_bytes([m[2], m[3]]);
+            (2500..=4200).contains(&c).then_some((first_minute + 60 * i as i64, c as f32 / 100.0))
+        })
+        .collect()
+}
+
+#[derive(Debug, PartialEq, Default)]
+pub struct Recovery {
+    pub start: i64,
+    pub hrv: Option<f32>,
+    pub resting_hr: Option<f32>,
+    pub breathing: Option<f32>,
+    pub temperature: Option<f32>,
+}
+
+/// Each night's means over its sleep (at least 10 samples), and the resting
+/// heart rate the strap files as the night ends (from its start to 6 h after it).
+pub fn recovery(nights: &[(i64, i64)], hrv: &[(i64, f32)], rhr: &[(i64, f32)], breath: &[(i64, f32)], temp: &[(i64, f32)]) -> Vec<Recovery> {
+    let mean = |s: &[(i64, f32)], a: i64, b: i64| {
+        let v: Vec<f32> = s.iter().filter(|(t, _)| (a..b).contains(t)).map(|(_, x)| *x).collect();
+        (v.len() >= 10).then(|| v.iter().sum::<f32>() / v.len() as f32)
+    };
+    nights
+        .iter()
+        .map(|&(a, b)| Recovery {
+            start: a,
+            hrv: mean(hrv, a, b),
+            resting_hr: rhr.iter().find(|(t, _)| (a..b + 6 * 3600).contains(t)).map(|(_, v)| *v),
+            breathing: mean(breath, a, b),
+            temperature: mean(temp, a, b),
+        })
+        .filter(|r| r.hrv.is_some() || r.resting_hr.is_some() || r.breathing.is_some() || r.temperature.is_some())
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn recovery_history() {
+        let t0: u32 = 1_795_300_000;
+        let rec6 = |t: u32, v: u8| [t.to_le_bytes().as_slice(), &[4, v]].concat();
+        let hrv_data: Vec<u8> = (0..30).flat_map(|i| rec6(t0 + 60 * i, 30 + (i % 3) as u8)).chain(rec6(t0, 0)).collect();
+        let h = hrv(&hrv_data);
+        assert_eq!(h.len(), 30, "zero is no reading");
+        let rhr = resting_hr(&[rec6(t0 + 3600, 61), rec6(t0 + 90_000, 200)].concat());
+        assert_eq!(rhr, vec![((t0 + 3600) as i64, 61.0)]);
+        let br: Vec<u8> = (0..20).flat_map(|i| [(t0 + 60 * i).to_le_bytes().as_slice(), &[4, 13, 0, 1]].concat()).collect();
+        assert_eq!(breathing(&br).len(), 20);
+        let temp: Vec<u8> = (0..20u16).flat_map(|i| [0xff, 0x7f, (3460 + i).to_le_bytes()[0], (3460 + i).to_le_bytes()[1], 0x5a, 0x5a, 0x5a, 0x5a]).collect();
+        let tt = skin_temperature(t0 as i64, &temp);
+        assert_eq!((tt.len(), tt[0]), (20, (t0 as i64, 34.6)));
+        let r = recovery(&[(t0 as i64, t0 as i64 + 3000)], &h, &rhr, &breathing(&br), &tt);
+        assert_eq!(r.len(), 1);
+        assert!((r[0].hrv.unwrap() - 31.0).abs() < 0.2 && r[0].resting_hr == Some(61.0) && r[0].breathing == Some(13.0));
+        assert!(recovery(&[(t0 as i64 - 9000, t0 as i64 - 8000)], &h, &[], &[], &[]).is_empty(), "nothing in that night");
+    }
 
     #[test]
     fn heart_rate_packets() {

@@ -103,6 +103,12 @@ that otherwise works.
   with your usual (the average of up to 28 nights before it): time asleep, deep,
   REM, efficiency and heart rate. The strap keeps 50 stages a night; when a night
   has more, the rest shows as a pale band and the totals still count it.
+- **Recovery** under the night: HRV, resting heart rate and breathing rate from
+  the strap's own history (the same figures as the Zepp app), and with 5 nights of
+  them, whether they are in your usual range. When HRV is 15% or more under its
+  usual, or resting heart rate 4 bpm or more over it, recovery is low and that
+  evening's bedtime moves 30 minutes earlier (with any debt payback, an hour at
+  most). Skin temperature is kept too, and shown only against your usual.
 - **Sleep debt** is a running balance in real hours, night by night:
   `D = max(0, 0.93·D + max(need − asleep, −2h))`, where asleep is the night plus
   the day's naps (the strap's own nap list; today's show under the night). Naps

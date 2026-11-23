@@ -60,7 +60,11 @@ Panel {
   readonly property var naps: Model.napsToday(nights, now)
   readonly property var lastNight: Model.lastNight(mainNights, now)
   readonly property var debt: Model.debtBalance(nights, sleepNeed, now)
-  readonly property var plan: Model.planNight(wakeTime, sleepNeed, fallAsleep, mainNights, debt.calibrating ? 0 : debt.minutes, now)
+  readonly property var lastUsual: Model.usual(mainNights, lastNight)
+  // "low", "good" or null: last night's HRV and resting heart rate against the usual.
+  readonly property var recovery: Model.recoveryStatus(lastNight, lastUsual)
+  readonly property var plan: Model.planNight(wakeTime, sleepNeed, fallAsleep, mainNights, debt.calibrating ? 0 : debt.minutes, now,
+                                               recovery === "low" ? 30 : 0)
   readonly property var regular: Model.regularity(mainNights, now)
 
   // Session
@@ -124,6 +128,9 @@ Panel {
       }
     } else if (ev.type === "hourly") {
       root.hourly = { day: ev.day, hours: ev.hours }
+    } else if (ev.type === "recovery") {
+      root.nights = Model.applyRecovery(root.nights, ev.nights)
+      root.saveNights()
     } else if (ev.type === "latency") {
       root.nights = Model.applyLatency(root.nights, ev.nights)
       root.saveNights()
@@ -154,7 +161,7 @@ Panel {
   // ---------- In-panel settings ----------
   property bool showSettings: false
   property string settingsTab: "sleep"
-  readonly property string pluginVersion: "1.4.0"   // keep in step with manifest.json
+  readonly property string pluginVersion: "1.5.0"   // keep in step with manifest.json
 
   // ---------- Intro (Settings > About) ----------
   property bool introOn: false
@@ -238,7 +245,7 @@ Panel {
   property string helperPath: ""
   property string helperVersion: ""
   // Oldest helper that follows only the confirmed strap and takes notifications on stdin.
-  readonly property string helperRequired: "1.4.0"
+  readonly property string helperRequired: "1.5.0"
   readonly property string installScript: Qt.resolvedUrl("install-helper.sh").toString().replace(/^file:\/\//, "")
   readonly property var helperCommand: [root.helperPath, "stream", root.deviceFilter, root.autoReconnect ? "1" : "0", root.confirmedAddress]
   onHelperCommandChanged: if (helperProc.running) helperProc.running = false   // restartTimer relaunches it
@@ -375,7 +382,9 @@ Panel {
   function sendEvening(action, now) {
     var wake = Model.formatClock(root.wakeTime)
     var bed = Model.formatClock(root.bedtime)
-    var payback = root.plan.payback > 0 ? " " + strings.t("notify.payback").arg(root.duration(root.plan.payback)) : ""
+    var debtPart = root.plan.payback - root.plan.recovery
+    var payback = (debtPart > 0 ? " " + strings.t("notify.payback").arg(root.duration(debtPart)) : "")
+                + (root.plan.recovery > 0 ? " " + strings.t("notify.recovery").arg(root.duration(root.plan.recovery)) : "")
     if (action === "wind-down") {
       root.notify(strings.t("notify.windDown.title").arg(bed), strings.t("notify.windDown.body") + payback, false)
       return {}
@@ -425,8 +434,21 @@ Panel {
     return (m < 0 ? "−" : "+") + root.duration(Math.abs(Math.round(m)))
   }
 
+  function recoveryText() {
+    var n = root.lastNight
+    if (!n) return ""
+    var parts = []
+    if (n.hrv !== undefined) parts.push(strings.t("recovery.hrv").arg(Math.round(n.hrv)))
+    if (n.rhr !== undefined) parts.push(strings.t("recovery.rhr").arg(Math.round(n.rhr)))
+    if (n.breath !== undefined) parts.push(strings.t("recovery.breath").arg(Math.round(n.breath)))
+    if (!parts.length) return ""
+    var head = strings.t("recovery.title") + " " + parts.join("  ·  ")
+    return root.recovery === "low" ? head + "\n" + strings.t("recovery.low")
+         : root.recovery === "good" ? head + "  ·  " + strings.t("recovery.good") : head
+  }
+
   function usualText() {
-    var n = root.lastNight, u = Model.usual(root.mainNights, n)
+    var n = root.lastNight, u = root.lastUsual
     if (!n || !u) return ""
     var parts = []
     function add(key, diff, worth, text) { if (diff !== null && Math.abs(diff) >= worth) parts.push(strings.t(key).arg(text)) }
@@ -438,6 +460,11 @@ Panel {
         (eff - u.efficiency < 0 ? "−" : "+") + Math.abs(Math.round(eff - u.efficiency)) + "%")
     add("usual.hr", u.hr === null || !n.hr ? null : n.hr - u.hr, 2,
         (n.hr - u.hr < 0 ? "−" : "+") + Math.abs(Math.round(n.hr - u.hr)))
+    function signed(x, digits) { return (x < 0 ? "−" : "+") + Math.abs(x).toFixed(digits) }
+    add("usual.hrv", u.hrv === null || n.hrv === undefined ? null : n.hrv - u.hrv, 4, signed(n.hrv - u.hrv, 0))
+    add("usual.rhr", u.rhr === null || n.rhr === undefined ? null : n.rhr - u.rhr, 2, signed(n.rhr - u.rhr, 0))
+    add("usual.breath", u.breath === null || n.breath === undefined ? null : n.breath - u.breath, 1, signed(n.breath - u.breath, 1))
+    add("usual.temp", u.temp === null || n.temp === undefined ? null : n.temp - u.temp, 0.3, signed(n.temp - u.temp, 1))
     return parts.length ? strings.t("sleep.usual").arg(u.nights).arg(parts.join(", "))
                         : strings.t("sleep.usualSame").arg(u.nights)
   }
@@ -932,7 +959,8 @@ Panel {
               text: strings.t("tonight.plan").arg(Model.formatClock(root.bedtime))
                       .arg(Model.formatClock(root.wakeTime)).arg(root.duration(root.sleepNeed))
                     + (root.target.free ? "\n" + strings.t("tonight.free").arg(Model.formatClock(root.wakeTime)) : "")
-                    + (root.plan.payback > 0 ? "\n" + strings.t("tonight.payback").arg(root.duration(root.plan.payback)) : "")
+                    + (root.plan.payback - root.plan.recovery > 0 ? "\n" + strings.t("tonight.payback").arg(root.duration(root.plan.payback - root.plan.recovery)) : "")
+                    + (root.plan.recovery > 0 ? "\n" + strings.t("tonight.recovery").arg(root.duration(root.plan.recovery)) : "")
                     + (root.plan.waso >= 10 ? "\n" + strings.t("tonight.waso").arg(root.duration(root.plan.waso)) : "")
                     + (root.fallAsleepMeasured ? "\n" + strings.t("tonight.latency").arg(root.duration(root.fallAsleep)) : "")
             }
@@ -1147,6 +1175,16 @@ Panel {
               color: root.dim
               font.pixelSize: Style.font.caption
               text: root.bedText()
+            }
+
+            // Recovery: HRV, resting heart rate, breathing; and how it compares.
+            PlainText {
+              visible: text !== ""
+              width: parent.width
+              wrapMode: Text.Wrap
+              color: root.recovery === "low" ? root.urgent : root.dim
+              font.pixelSize: Style.font.caption
+              text: root.recoveryText()
             }
 
             // Against your usual nights.

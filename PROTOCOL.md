@@ -84,11 +84,14 @@ encrypted if its flag says so.
 ### 2.5 History fetch (endpoint `004b`, data on `0005`)
 
 - Start: `01 type` + time8(since). Types: `48` sleep sessions, `01` per-minute
-  activity.
+  activity, and the recovery types of §2.8.
 - time8: `year:u16, month, day, hour, minute, second, tz` where tz is the UTC
   offset in 15-minute steps (signed).
 - Start reply: `10 01 01 count:u32` + time8 of the first record (when present).
-  Status other than `01` in byte 2 is an error. Count 0 means nothing to send.
+  Status other than `01` in byte 2 is an error: `03` the type is not offered,
+  `05` busy, a transfer still open (one never acknowledged, for example by a
+  helper stopped mid-download); acknowledging it with `03 09` clears it. Count 0
+  means nothing to send.
 - `02`: send the data. Data arrives on `0005` as `counter:u8` + bytes; the
   counter runs 0, 1, 2… (wrapping at 256); a gap means the transfer is broken.
 - Done reply: `10 02 01` + optional `crc32:u32` of all data bytes.
@@ -121,6 +124,27 @@ overlapping night replaces the earlier one.
 
 From the start time in the start reply: `kind, intensity, steps, heart rate,
 ?, sleep, deep, rem`. Kinds seen: 115 not worn, 118 charging, 120 asleep.
+
+### 2.8 Recovery history
+
+Checked on a strap against the Zepp app (HRV, resting heart rate and breathing
+equal its figures for the same nights). Timestamped records start with
+`time:u32` (epoch s) and `utc_offset:i8` (quarter hours).
+
+| Type | Record | Meaning |
+|---|---|---|
+| `49` | 6 bytes: time, offset, `ms:u8` | HRV, one a minute while asleep (naps too); 0 is no reading |
+| `3a` | 6 bytes: time, offset, `bpm:u8` | resting heart rate, one a day, filed as the night ends |
+| `38` | 8 bytes: time, offset, `rate:u16`, `?:u8` | breaths a minute, one a minute while asleep; kept about two days |
+| `2e` | 8 bytes a minute from the start time | `?:i16` (`7fff`), skin temperature `°C × 100:u16`, 4 bytes |
+| `3d` | 6 bytes: time, offset, `bpm:u8` | the day's maximum heart rate (not used) |
+
+A night's HRV, breathing and skin temperature are their means over its sleep
+(at least ten readings each). Other types answer on this strap but are not read:
+`05`/`06` workouts, `0d` PAI, `13` a per-minute score (stress?), `25`/`26`
+SpO2 by day and night, `55`/`57` per-second heart rate, `27`/`4a` the device's
+diagnostic log and its index (`07` the large one, about 20 MB), `2c`, `39`,
+`3b`, `4e`.
 
 ## 3. Zepp account (key download)
 
