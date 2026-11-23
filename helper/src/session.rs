@@ -49,8 +49,6 @@ pub enum Phase {
 enum What {
     Sleep,
     Minutes,
-    /// Research only (EBB_PROBE): dump an unknown history type.
-    Probe(u8),
 }
 
 struct Transfer {
@@ -66,7 +64,6 @@ pub struct Session {
     /// Downloads keep failing: the caller should drop and rebuild the link.
     pub wants_reconnect: bool,
     failures: u8,
-    probe: Vec<u8>,
     pub began: Instant,
     /// The proof is sent: a later challenge is someone else's handshake.
     answered: bool,
@@ -101,7 +98,6 @@ impl Session {
             answered: false,
             wants_reconnect: false,
             failures: 0,
-            probe: probe_list(),
             mtu,
             curve,
             private,
@@ -278,14 +274,9 @@ impl Session {
             }
             FetchReply::Refused { command, status } => {
                 crate::debug(&format!("download refused: command {command:02x} status {status:02x}"));
-                let probing = matches!(t.what, What::Probe(_));
                 self.transfer = None;
-                if probing {
-                    self.next_probe(out, now);
-                } else {
-                    self.last_sleep = Some(now);
-                    self.failed();
-                }
+                self.last_sleep = Some(now);
+                self.failed();
             }
             FetchReply::Acked => {}
         }
@@ -309,10 +300,6 @@ impl Session {
         let enc = self.fetch_encrypted.unwrap_or(false);
         self.send(out, proto::EP_FETCH, proto::FETCH_DONE_KEEP, enc);
         match t.what {
-            What::Probe(kind) => {
-                crate::debug(&format!("probe {kind:02x} ok {ok} from {:?} bytes {} data {}", t.from, t.data.data.len(), hex(&t.data.data)));
-                self.next_probe(out, now);
-            }
             What::Sleep => {
                 self.last_sleep = Some(now);
                 if ok {
@@ -344,19 +331,8 @@ impl Session {
                     }
                 }
                 self.waiting_onsets.clear();
-                self.next_probe(out, now);
             }
         }
-    }
-
-    fn next_probe(&mut self, out: &mut Vec<Out>, now: Instant) {
-        if self.transfer.is_some() || self.probe.is_empty() {
-            return;
-        }
-        let kind = self.probe.remove(0);
-        let since = Local::now().fixed_offset() - chrono::Duration::days(2);
-        crate::debug(&format!("probe {kind:02x} start"));
-        self.download(out, What::Probe(kind), kind, &since, now);
     }
 
     /// Report the nights, then fetch minute data from midnight (steps per hour)
@@ -412,15 +388,6 @@ impl Session {
             }
         }
         self.download(out, What::Minutes, proto::KIND_MINUTES, &since, now);
-    }
-}
-
-/// EBB_PROBE=all: every history type but minutes (01) and sleep (48).
-fn probe_list() -> Vec<u8> {
-    match std::env::var("EBB_PROBE").as_deref() {
-        Ok("all") => (0x02u8..=0x5f).filter(|k| *k != 0x48).collect(),
-        Ok(list) => list.split(',').filter_map(|k| u8::from_str_radix(k.trim(), 16).ok()).collect(),
-        Err(_) => Vec::new(),
     }
 }
 
