@@ -860,7 +860,10 @@ function moveAction(nowMs, s, o) {
 }
 
 function normalizeMoveEvery(v) { var n = clampInt(v, 20, 180); return n === null ? 50 : n }
-function normalizeMoveSteps(v) { var n = clampInt(v, 10, 1000); return n === null ? 10 : n }
+// A move is a real break: about two minutes of walking. Ten steps (the fridge)
+// would reset the sitting timer all day and the reminders would never come.
+var MOVE_STEPS_DEFAULT = 200
+function normalizeMoveSteps(v) { var n = clampInt(v, 10, 1000); return n === null ? MOVE_STEPS_DEFAULT : n }
 
 // Today's bars: the strap's per-hour counts, plus live steps not in them yet
 // added to the current hour.
@@ -870,6 +873,12 @@ function hourBars(hourly, steps, nowMs) {
   var counted = hours.reduce(function(a, b) { return a + b }, 0)
   if (steps > counted) hours[new Date(nowMs).getHours()] += steps - counted
   return hours
+}
+
+// An hour with this many steps or more counts as active.
+var ACTIVE_HOUR_STEPS = 250
+function activeHours(hours) {
+  return (hours || []).filter(function(h) { return h >= ACTIVE_HOUR_STEPS }).length
 }
 
 // Which panel view fits the time: the sleep coach from 2h before bedtime

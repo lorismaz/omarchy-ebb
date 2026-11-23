@@ -12,11 +12,13 @@ Ebb was called Helio Strap until 1.3.0; see [Coming from Helio Strap](#coming-fr
 The plugin follows your day:
 
 - **During the day it's about movement.** The bar shows a walker and today's steps.
-  The panel opens on **Move**: steps against your daily goal, steps per hour today
-  (from the strap's own minute data), how long you've been sitting, and in the
-  morning a one-line recap of the night.
+  The panel opens on **Move**: steps against your daily goal, then three numbers
+  (steps to go, how long you've been sitting and when the next reminder comes, and
+  active hours: hours with 250 steps or more), steps per hour today with the active
+  hours in colour (from the strap's own minute data), and in the morning a
+  one-line recap of the night.
 - **Move reminders with proof:** while you're at the computer, after 50 minutes
-  without a move (about 10 steps within 10 minutes) you get a nudge and the walker
+  without a move (about 200 steps within 10 minutes: a two-minute walk, not a trip to the fridge) you get a nudge and the walker
   turns highlighted with "Move". Only walking clears it: the strap has to count the
   steps, live or later from its minute log (a walk out of Bluetooth range counts once
   it syncs). At most two nudges per sitting stretch, none in your last hour before bed.

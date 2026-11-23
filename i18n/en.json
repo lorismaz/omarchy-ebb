@@ -36,8 +36,6 @@
   },
   "activity.km": "%1 km",
   "activity.kcal": "%1 kcal",
-  "activity.goal": "%1% of your %2-step goal",
-  "activity.goalDone": "Daily goal reached",
   "tooltip.steps": {
     "one": "%1 step today",
     "other": "%1 steps today"
@@ -119,9 +117,7 @@
   "view.move": "󰖃  Move",
   "view.sleep": "󰒲  Sleep",
   "move.due": "Time to move: %1 sitting. Walk about %2 steps to reset.",
-  "move.sitting": "Sitting for %1",
-  "move.tracking": "Tracking movement…",
-  "move.perHour": "Steps per hour today",
+  "move.perHour": "Steps per hour today, active hours in colour",
   "move.lastNight": "Last night %1 · %2",
   "tonight.bedtime": "Bedtime",
   "tonight.in": "in %1",
@@ -175,5 +171,14 @@
   "unit.ms": "%1 ms",
   "unit.perMin": "%1 /min",
   "recovery.goodLine": "Recovery in your usual range.",
-  "unit.bpmValue": "%1 bpm"
+  "unit.bpmValue": "%1 bpm",
+  "tile.toGo": "To go",
+  "tile.goal": "Goal",
+  "tile.goalDone": "Reached",
+  "tile.goalOf": "of %1 steps",
+  "tile.sitting": "Sitting",
+  "tile.timeToMove": "time to move",
+  "tile.reminderIn": "reminder in %1",
+  "tile.activeHours": "Active hours",
+  "tile.activeHoursNote": "%1+ steps each"
 }

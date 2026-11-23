@@ -4,7 +4,7 @@ const path = require("path")
 const assert = require("assert")
 
 const src = fs.readFileSync(path.join(__dirname, "..", "Model.js"), "utf8").replace(".pragma library", "")
-const M = new Function(src + "; return { parseLine, zoneFor, zoneBounds, normalizeMaxHr, emptyStats, addReading, average, pushPoint, rmssd, pushRR, formatDuration, batteryIcon, normalizeStepGoal, normalizeBarMode, goalProgress, parseClock, normalizeBedtime, formatClock, dayKey, minutesPastBedtime, freshDay, loadDay, withChanges, hoursMinutes, parseSleepNeed, normalizeWake, normalizeFallAsleep, bedtimeFor, sleepIfBedNow, SLEEP_NEEDS, parseNight, lastNight, mergeNights, parseNightList, debtBalance, circularStats, regularity, planNight, eveningAction, morningAction, localDateKey, scheduleFromDays, wakeTarget, targetMorning, WAKE_KEYS, applyLatency, typicalLatency, recordSteps, movedRecently, lastMoveInMinutes, mainNights, napsToday, nightLatency, efficiency, usual, applyRecovery, recoveryStatus, moveAction, normalizeMoveEvery, normalizeMoveSteps, hourBars, autoView, clockSet, rebaseUnsetClock, minutesUntilBedtime, normalizeAddress, versionLess, MAX_POINTS, MAX_NAME };")()
+const M = new Function(src + "; return { parseLine, zoneFor, zoneBounds, normalizeMaxHr, emptyStats, addReading, average, pushPoint, rmssd, pushRR, formatDuration, batteryIcon, normalizeStepGoal, normalizeBarMode, goalProgress, parseClock, normalizeBedtime, formatClock, dayKey, minutesPastBedtime, freshDay, loadDay, withChanges, hoursMinutes, parseSleepNeed, normalizeWake, normalizeFallAsleep, bedtimeFor, sleepIfBedNow, SLEEP_NEEDS, parseNight, lastNight, mergeNights, parseNightList, debtBalance, circularStats, regularity, planNight, eveningAction, morningAction, localDateKey, scheduleFromDays, wakeTarget, targetMorning, WAKE_KEYS, applyLatency, typicalLatency, recordSteps, movedRecently, lastMoveInMinutes, activeHours, ACTIVE_HOUR_STEPS, mainNights, napsToday, nightLatency, efficiency, usual, applyRecovery, recoveryStatus, moveAction, normalizeMoveEvery, normalizeMoveSteps, MOVE_STEPS_DEFAULT, hourBars, autoView, clockSet, rebaseUnsetClock, minutesUntilBedtime, normalizeAddress, versionLess, MAX_POINTS, MAX_NAME };")()
 
 // Heart rate lines
 let ev = M.parseLine('{"t":"hr","bpm":72,"contact":null,"rr":[812,830]}')
@@ -377,9 +377,11 @@ assert.strictEqual(M.moveAction(T + 70 * 60000, nudged, on), "none")       // 25
 assert.strictEqual(M.moveAction(T + 76 * 60000, nudged, on), "nudge")
 assert.strictEqual(M.moveAction(T + 200 * 60000, { ...nudged, nudges: 2 }, on), "none")   // then silence
 assert.strictEqual(M.normalizeMoveEvery(5), 50); assert.strictEqual(M.normalizeMoveSteps(200), 200)
-assert.strictEqual(M.normalizeMoveSteps(undefined), 10); assert.strictEqual(M.normalizeMoveSteps(3), 10)
+assert.strictEqual(M.normalizeMoveSteps(undefined), 200); assert.strictEqual(M.normalizeMoveSteps(3), 200)   // out of range: the default
 smp = M.recordSteps([], 2000, T); smp = M.recordSteps(smp, 2012, T + 60000)
-assert.strictEqual(M.movedRecently(smp, M.normalizeMoveSteps(undefined)), true)          // a dozen steps ends sitting
+assert.strictEqual(M.movedRecently(smp, M.normalizeMoveSteps(undefined)), false)         // a trip to the fridge is not a break
+smp = M.recordSteps(smp, 2230, T + 4 * 60000)
+assert.strictEqual(M.movedRecently(smp, M.normalizeMoveSteps(undefined)), true)          // two minutes of walking is
 // Hourly bars
 const todayKey = M.localDateKey(T)
 const hrs = Array(24).fill(0); hrs[9] = 2000; hrs[13] = 500
@@ -401,6 +403,9 @@ assert.strictEqual(M.lastMoveInMinutes(T, walk, 10), T + 180 * 60000)
 assert.strictEqual(M.lastMoveInMinutes(T, Array(240).fill(0), 10), 0)
 const trickle = Array(60).fill(0); for (let i = 0; i < 60; i += 15) trickle[i] = 4  // 4 steps every 15 min: not a move
 assert.strictEqual(M.lastMoveInMinutes(T, trickle, 10), 0)
+// Active hours: 250 steps or more
+assert.strictEqual(M.activeHours([0, 249, 250, 3000, 10]), 2)
+assert.strictEqual(M.activeHours(null), 0)
 // Auto view
 assert.strictEqual(M.autoView(-180), "move")
 assert.strictEqual(M.autoView(-120), "sleep")

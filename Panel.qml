@@ -114,18 +114,29 @@ Panel {
         if (root.moveNudges > 0) root.notify(strings.t("notify.moved.title"), strings.t("notify.moved.body"), false)
         root.lastMovedAt = t
         root.movedSeen = true
+        root.sittingKnown = true
         root.moveNudges = 0
         root.lastNudgeAt = 0
       }
     } else if (ev.type === "minutes") {
       // Walks the live readings missed (strap out of range, or no key yet).
       var moved = Math.min(Model.lastMoveInMinutes(ev.from, ev.steps, root.moveSteps), Date.now())
-      if (moved > root.lastMovedAt) {
+      if (moved > 0 && !root.movedSeen) {
+        // Until a live move, the timer only counts from the shell's start: the log knows better.
+        root.lastMovedAt = moved
+        root.movedSeen = true
+      } else if (moved > root.lastMovedAt) {
         root.lastMovedAt = moved
         root.movedSeen = true
         root.moveNudges = 0
         root.lastNudgeAt = 0
+      } else if (moved === 0 && !root.movedSeen) {
+        // No move in the whole log: sitting since its start at least, not since the shell
+        // started; but never counting the night (the morning starts at waking).
+        var since = Math.max(ev.from, root.lastNight ? root.lastNight.end * 1000 : 0)
+        if (since < root.lastMovedAt) root.lastMovedAt = since
       }
+      root.sittingKnown = true
     } else if (ev.type === "hourly") {
       root.hourly = { day: ev.day, hours: ev.hours }
     } else if (ev.type === "recovery") {
@@ -161,7 +172,7 @@ Panel {
   // ---------- In-panel settings ----------
   property bool showSettings: false
   property string settingsTab: "sleep"
-  readonly property string pluginVersion: "1.5.0"   // keep in step with manifest.json
+  readonly property string pluginVersion: "1.5.1"   // keep in step with manifest.json
 
   // ---------- Intro (Settings > About) ----------
   property bool introOn: false
@@ -575,15 +586,37 @@ Panel {
 
   readonly property bool moveReminders: setting("moveReminders", true) !== false
   readonly property int moveEvery: Model.normalizeMoveEvery(setting("moveEvery", 50))
-  readonly property int moveSteps: Model.normalizeMoveSteps(setting("moveSteps", 10))
+  readonly property int moveSteps: Model.normalizeMoveSteps(setting("moveSteps", Model.MOVE_STEPS_DEFAULT))
   property var stepSamples: []
   property double lastMovedAt: Date.now()
   property bool movedSeen: false
+  // A move was seen, or the strap's minute log says there was none: the sitting time is real.
+  property bool sittingKnown: false
   property int moveNudges: 0
   property double lastNudgeAt: 0
   property double lastStepsAt: 0
   property var hourly: null
   readonly property var hourBarsToday: Model.hourBars(hourly, steps, now)
+  readonly property int activeHours: Model.activeHours(hourBarsToday)
+
+  // To go, sitting, active hours: { label, value, note, tone (1 good, -1 act now, 0 plain) }.
+  readonly property var moveTilesModel: {
+    var fmt = function(x) { return Commons.I18n.formatNumber(x, 0) }
+    var out = []
+    var left = Math.max(0, root.stepGoal - root.steps)
+    out.push(left === 0
+      ? { label: strings.t("tile.goal"), value: strings.t("tile.goalDone"), note: strings.t("tile.goalOf").arg(fmt(root.stepGoal)), tone: 1 }
+      : { label: strings.t("tile.toGo"), value: fmt(left), note: strings.t("tile.goalOf").arg(fmt(root.stepGoal)), tone: 0 })
+    var due = root.moveDue
+    out.push({ label: strings.t("tile.sitting"), value: root.sittingKnown ? root.duration(root.sittingMinutes) : "—",
+               note: !root.moveReminders || !root.moveWindow || !root.sittingKnown ? ""
+                   : due ? strings.t("tile.timeToMove")
+                   : strings.t("tile.reminderIn").arg(root.duration(Math.max(0, root.moveEvery - root.sittingMinutes))),
+               tone: due ? -1 : 0 })
+    out.push({ label: strings.t("tile.activeHours"), value: fmt(root.activeHours),
+               note: strings.t("tile.activeHoursNote").arg(fmt(Model.ACTIVE_HOUR_STEPS)), tone: 0 })
+    return out
+  }
   readonly property bool stepsFresh: lastStepsAt > 0 && now - lastStepsAt < 5 * 60000
   // No move nudges in the last hour before bed or while it's late.
   readonly property bool moveWindow: pastBedtime < -60 || pastBedtime >= Model.LATE_WINDOW_MINUTES
@@ -732,28 +765,50 @@ Panel {
               }
             }
 
-            PlainText {
-              text: root.steps >= root.stepGoal
-                ? strings.t("activity.goalDone")
-                : strings.t("activity.goal").arg(Commons.I18n.formatNumber(Math.round(Model.goalProgress(root.steps, root.stepGoal) * 100), 0))
-                    .arg(Commons.I18n.formatNumber(root.stepGoal, 0))
-              color: root.dim
-              font.pixelSize: Style.font.caption
+          }
+
+          // The day in three numbers.
+          Grid {
+            id: moveTiles
+            visible: root.steps >= 0
+            width: parent.width
+            columns: 3
+            columnSpacing: Style.space(8)
+            Repeater {
+              model: root.moveTilesModel
+              Column {
+                required property var modelData
+                width: (moveTiles.width - moveTiles.columnSpacing * 2) / 3
+                spacing: Style.space(1)
+                PlainText {
+                  text: modelData.label
+                  color: root.dim
+                  font.pixelSize: Style.font.caption
+                }
+                PlainText {
+                  text: modelData.value
+                  color: modelData.tone < 0 ? root.urgent : modelData.tone > 0 ? root.accent : root.foreground
+                  font.pixelSize: Style.font.body
+                  font.bold: true
+                }
+                PlainText {
+                  text: modelData.note !== "" ? modelData.note : " "
+                  color: modelData.tone < 0 ? root.urgent : root.dim
+                  font.pixelSize: Style.font.caption
+                }
+              }
             }
           }
 
-          // Sitting status: highlighted when it's time to move.
+          // Only when it's time to move: what to do about it.
           PlainText {
-            visible: root.steps >= 0 && root.moveReminders
+            visible: root.steps >= 0 && root.moveDue
             width: parent.width
             wrapMode: Text.Wrap
             font.pixelSize: Style.font.body
-            font.bold: root.moveDue
-            color: root.moveDue ? root.accent : root.dim
-            text: root.moveDue
-              ? strings.t("move.due").arg(root.duration(root.sittingMinutes)).arg(Commons.I18n.formatNumber(root.moveSteps, 0))
-              : root.movedSeen ? strings.t("move.sitting").arg(root.duration(root.sittingMinutes))
-              : strings.t("move.tracking")
+            font.bold: true
+            color: root.accent
+            text: strings.t("move.due").arg(root.duration(root.sittingMinutes)).arg(Commons.I18n.formatNumber(root.moveSteps, 0))
           }
           PlainText {
             visible: root.steps < 0
@@ -810,6 +865,7 @@ Panel {
                     id: hourBar
                     required property int index
                     readonly property bool current: hourBar.index + 6 === root.nowDate.getHours()
+                    readonly property bool active: hourChart.bars[hourBar.index] >= Model.ACTIVE_HOUR_STEPS
                     width: (hourChart.width - hourChart.gap * (hourChart.bars.length - 1)) / hourChart.bars.length
                     height: hourChart.height
 
@@ -818,8 +874,8 @@ Panel {
                       width: parent.width
                       height: Math.max(2, parent.height * hourChart.bars[hourBar.index] / hourChart.peak)
                       radius: Math.min(width / 2, Style.space(3))
-                      color: hourBar.current ? root.accent : root.foreground
-                      opacity: hourBar.current ? 1 : (hourChart.bars[hourBar.index] > 0 ? 0.45 : 0.12)
+                      color: hourBar.active || hourBar.current ? root.accent : root.foreground
+                      opacity: hourBar.current ? 1 : hourBar.active ? 0.75 : (hourChart.bars[hourBar.index] > 0 ? 0.3 : 0.12)
                     }
                   }
                 }

@@ -36,8 +36,6 @@
   },
   "activity.km": "%1 km",
   "activity.kcal": "%1 kcal",
-  "activity.goal": "%1 % de votre objectif de %2 pas",
-  "activity.goalDone": "Objectif du jour atteint",
   "tooltip.steps": {
     "one": "%1 pas aujourd'hui",
     "other": "%1 pas aujourd'hui"
@@ -119,9 +117,7 @@
   "view.move": "󰖃  Bouger",
   "view.sleep": "󰒲  Sommeil",
   "move.due": "Il est temps de bouger : %1 assis. Marchez environ %2 pas pour remettre à zéro.",
-  "move.sitting": "Assis depuis %1",
-  "move.tracking": "Suivi des mouvements…",
-  "move.perHour": "Pas par heure aujourd'hui",
+  "move.perHour": "Pas par heure aujourd'hui, heures actives en couleur",
   "move.lastNight": "Cette nuit %1 · %2",
   "tonight.bedtime": "Coucher",
   "tonight.in": "dans %1",
@@ -175,5 +171,14 @@
   "unit.ms": "%1 ms",
   "unit.perMin": "%1 /min",
   "recovery.goodLine": "Récupération dans ta moyenne.",
-  "unit.bpmValue": "%1 bpm"
+  "unit.bpmValue": "%1 bpm",
+  "tile.toGo": "Restants",
+  "tile.goal": "Objectif",
+  "tile.goalDone": "Atteint",
+  "tile.goalOf": "sur %1 pas",
+  "tile.sitting": "Assis",
+  "tile.timeToMove": "il est temps de bouger",
+  "tile.reminderIn": "rappel dans %1",
+  "tile.activeHours": "Heures actives",
+  "tile.activeHoursNote": "%1+ pas chacune"
 }
