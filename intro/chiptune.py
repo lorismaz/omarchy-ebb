@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Original keygen-style chiptune for the Helio Strap intro.
+"""Original keygen-style chiptune for the Ebb intro.
 
 Pure Python, no dependencies: tracker-style chord arpeggios on a pulse wave,
 an octave bass, a lead with vibrato and noise drums, 16 bars in A minor that

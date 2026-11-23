@@ -1,10 +1,13 @@
-# Helio Strap for Omarchy
+# Ebb
 
-Today's steps, live heart rate and last night's sleep from an **Amazfit Helio Strap**
-in the Omarchy bar, with a sleep coach. Heart rate also works with any Bluetooth LE
-heart rate strap.
+**Flow by day, ebb by night.** Ebb follows the tide of your day from an
+**Amazfit Helio Strap**, in the Omarchy bar: steps and move reminders while you're
+up, a sleep coach as the evening comes in, and last night's sleep, naps and sleep
+debt. Heart rate also works with any Bluetooth LE heart rate strap.
 
-![The Helio Strap panel's Move and Sleep views and its settings page](preview.png)
+Ebb was called Helio Strap until 1.3.0; see [Coming from Helio Strap](#coming-from-helio-strap).
+
+![Ebb's Move and Sleep views and its settings page](preview.png)
 
 The plugin follows your day:
 
@@ -29,19 +32,19 @@ The plugin follows your day:
 ## Install
 
 ```bash
-omarchy plugin add https://github.com/lorismaz/omarchy-helio-strap --enable
+omarchy plugin add https://github.com/lorismaz/omarchy-ebb --enable
 ```
 
-The panel talks to the strap through a small Bluetooth helper, `helio-strap`, written
+The panel talks to the strap through a small Bluetooth helper, `ebb-strap`, written
 in Rust (source in `helper/`). The first time you open the panel it offers
 **Install helper**, which runs [`install-helper.sh`](install-helper.sh): it downloads
 the helper for your machine (x86_64 or aarch64) from this repository's
-[GitHub release](https://github.com/lorismaz/omarchy-helio-strap/releases), checks its
+[GitHub release](https://github.com/lorismaz/omarchy-ebb/releases), checks its
 SHA-256 against the value pinned in the script, and installs it to
-`~/.local/share/helio-strap/bin/`. The release binaries are built by
+`~/.local/share/ebb/bin/`. The release binaries are built by
 [GitHub Actions](.github/workflows/release.yml) from the tagged source.
 
-A `helio-strap` already on your `PATH` (for example one you built yourself) is used
+A `ebb-strap` already on your `PATH` (for example one you built yourself) is used
 instead. An AUR package is ready in `packaging/aur/` for when AUR registration reopens.
 
 Then pair the strap in Omarchy's Bluetooth panel, open the panel and confirm it with
@@ -74,7 +77,7 @@ Good to know:
 
 With steps set up, the plugin also reads your sleep sessions from the strap (it
 always answers "keep on device", so the Zepp app still syncs the same nights) and
-keeps up to 30 nights locally in `~/.local/state/helio-strap/`. Nothing is
+keeps up to 30 nights locally in `~/.local/state/ebb/`. Nothing is
 downloaded while the computer's clock is not set yet, and readings stamped more
 than ten minutes ahead of it are dropped. When downloads fail twice in a row,
 the helper reconnects: the strap's history service sometimes stalls on a link
@@ -118,7 +121,7 @@ coach only uses total sleep and sleep/wake times.
 
 ## Settings
 
-Open the panel and click **Settings**, or use `omarchy bar set lorismaz.helio-strap <key> <value>`
+Open the panel and click **Settings**, or use `omarchy bar set lorismaz.ebb <key> <value>`
 (for example `wakeWed 09:00`). Settings:
 
 Show in the bar · move reminders, minutes of sitting and steps that count as moving · wake-up time for each weekday · sleep you need · minutes
@@ -127,7 +130,7 @@ the zones) · strap name filter · reconnect automatically · zone next to the h
 
 ## Requirements
 
-The `helio-strap` helper (above), BlueZ, and a Secret Service keyring
+The `ebb-strap` helper (above), BlueZ, and a Secret Service keyring
 (`secret-tool`, from libsecret) for steps.
 
 ## Privacy
@@ -140,7 +143,7 @@ from GitHub when you click Install helper.
   and address for you to choose from, never connected to or read.
 - Notifications go to the desktop over D-Bus through the helper, so their contents
   (sleep, bedtime, sitting time) never appear on a command line other accounts could see.
-- Sleep history and daily activity live in `~/.local/state/helio-strap/`, which the
+- Sleep history and daily activity live in `~/.local/state/ebb/`, which the
   plugin keeps private to your account (mode 0700), one sleep history per strap.
 - The Zepp auth key is in your desktop keyring, never in a file.
 
@@ -155,7 +158,7 @@ To try a local build of the helper before the package is installed:
 
 ```bash
 cargo build --release --manifest-path helper/Cargo.toml
-ln -s "$PWD/helper/target/release/helio-strap" ~/.local/bin/helio-strap
+ln -s "$PWD/helper/target/release/ebb-strap" ~/.local/bin/ebb-strap
 ```
 
 ## Credits
@@ -166,25 +169,41 @@ from public reverse-engineering of Zepp OS devices, notably by the
 [Gadgetbridge](https://codeberg.org/Freeyourgadget/Gadgetbridge) project, and the
 Zepp login follows [huami-token](https://codeberg.org/argrento/huami-token) (MIT).
 
-Not affiliated with or endorsed by Amazfit, Zepp Health or Huami. Amazfit and Zepp
-are trademarks of their owners.
+Not affiliated with or endorsed by Amazfit, Zepp Health or Huami. Amazfit, Helio
+and Zepp are trademarks of their owners; Ebb names the Helio Strap only to say
+which device it works with.
+
+## Coming from Helio Strap
+
+Ebb is the same plugin under a new name: a new plugin id (`lorismaz.ebb`) and
+helper (`ebb-strap`). Remove the old one and add Ebb:
+
+```bash
+omarchy plugin remove lorismaz.helio-strap
+omarchy plugin add https://github.com/lorismaz/omarchy-ebb --enable
+```
+
+Your strap's key, sleep history and screen time carry over on their own (the key is
+still read from where Helio Strap saved it, and `~/.local/state/helio-strap/` moves
+to `~/.local/state/ebb/` the first time Ebb starts). Settings set from the panel
+(wake times, sleep need, your confirmed strap) need setting again.
 
 ## Commands
 
 ```bash
-omarchy-shell lorismaz.helio-strap toggle          # open or close the panel
-omarchy-shell lorismaz.helio-strap openSettings    # open the settings page
-omarchy-shell lorismaz.helio-strap showView move    # open on the Move or Sleep view
-omarchy-shell lorismaz.helio-strap setupSteps      # save the strap's auth key
-omarchy-shell lorismaz.helio-strap snooze          # snooze bedtime reminders 30 min
-omarchy-shell lorismaz.helio-strap doneForTonight  # mute reminders until morning
+omarchy-shell lorismaz.ebb toggle          # open or close the panel
+omarchy-shell lorismaz.ebb openSettings    # open the settings page
+omarchy-shell lorismaz.ebb showView move    # open on the Move or Sleep view
+omarchy-shell lorismaz.ebb setupSteps      # save the strap's auth key
+omarchy-shell lorismaz.ebb snooze          # snooze bedtime reminders 30 min
+omarchy-shell lorismaz.ebb doneForTonight  # mute reminders until morning
 ```
 
 ## Remove
 
 ```bash
-omarchy plugin remove lorismaz.helio-strap
-rm -rf ~/.local/share/helio-strap                  # the Bluetooth helper
-secret-tool clear service omarchy-helio-strap      # forget the saved auth key
-rm -rf ~/.local/state/helio-strap                  # forget sleep history and screen time
+omarchy plugin remove lorismaz.ebb
+rm -rf ~/.local/share/ebb                          # the Bluetooth helper
+secret-tool clear service omarchy-ebb              # forget the saved auth key
+rm -rf ~/.local/state/ebb                          # forget sleep history and screen time
 ```

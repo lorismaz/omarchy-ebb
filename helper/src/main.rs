@@ -1,11 +1,11 @@
-//! helio-strap: the Bluetooth helper for the Helio Strap Omarchy plugin.
+//! ebb-strap: the Bluetooth helper for Ebb, the Omarchy plugin for the Amazfit Helio Strap.
 //!
-//!   helio-strap stream [name-filter] [reconnect: 1|0] [confirmed-address]
+//!   ebb-strap stream [name-filter] [reconnect: 1|0] [confirmed-address]
 //!                                                      JSON lines for the panel;
 //!                                                      notification requests on stdin
-//!   helio-strap setup [name-filter]                     save the strap's key
+//!   ebb-strap setup [name-filter]                     save the strap's key
 //!
-//! Written from PROTOCOL.md. Set HELIO_DEBUG=1 to log protocol traffic to stderr.
+//! Written from PROTOCOL.md. Set EBB_DEBUG=1 to log protocol traffic to stderr.
 
 // Style only: nested ifs read better here than let-chains, and chunks_exact
 // is as clear as as_chunks.
@@ -22,12 +22,12 @@ mod setup;
 mod stream;
 
 pub fn debug(msg: &str) {
-    if std::env::var_os("HELIO_DEBUG").is_some() {
+    if std::env::var_os("EBB_DEBUG").is_some() {
         eprintln!("{msg}");
     }
 }
 
-const USAGE: &str = "usage: helio-strap stream [name-filter] [1|0] [AA:BB:CC:DD:EE:FF]\n       helio-strap setup [name-filter]";
+const USAGE: &str = "usage: ebb-strap stream [name-filter] [1|0] [AA:BB:CC:DD:EE:FF]\n       ebb-strap setup [name-filter]";
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -48,7 +48,7 @@ async fn main() {
         }
         Some("setup") => setup::run(arg(1, "")).await,
         Some("--version") => {
-            println!("helio-strap {}", env!("CARGO_PKG_VERSION"));
+            println!("ebb-strap {}", env!("CARGO_PKG_VERSION"));
             0
         }
         _ => {

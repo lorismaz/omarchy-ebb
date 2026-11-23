@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Helio Strap for Omarchy</title>
-<meta name="description" content="Steps, heart rate, sleep and a sleep coach from an Amazfit Helio Strap, in the Omarchy bar.">
+<title>Ebb for Omarchy</title>
+<meta name="description" content="Flow by day, ebb by night: steps, move reminders, sleep and a sleep coach from an Amazfit Helio Strap, in the Omarchy bar.">
 <style>
   :root {
     --bg: #f6f7fb;
@@ -108,13 +108,13 @@
 <body>
 <main>
   <header>
-    <h1>Helio Strap for Omarchy <span class="moon" aria-hidden="true">☾</span></h1>
-    <p class="lede">Today's steps, live heart rate and last night's sleep from an Amazfit Helio Strap, right in the Omarchy bar, with a sleep coach that tells you when it's time to stop.</p>
+    <h1>Ebb <span class="moon" aria-hidden="true">☾</span></h1>
+    <p class="lede"><strong>Flow by day, ebb by night.</strong> Today's steps, live heart rate and last night's sleep from an Amazfit Helio Strap, right in the Omarchy bar, with a sleep coach that tells you when it's time to stop.</p>
   </header>
 
   <figure>
     <img class="shot" src="preview.png" width="1200" height="1681"
-         alt="The Helio Strap panel in its two views and its settings page. Move: today's steps, steps per hour, last night's sleep and debt in one line. Sleep: tonight's bedtime countdown and plan, last night's sleep with stages and sleep debt. Settings: a wake-up time for each weekday, sleep need, move reminders and the bar display.">
+         alt="Ebb's panel in its two views and its settings page. Move: today's steps, steps per hour, last night's sleep and debt in one line. Sleep: tonight's bedtime countdown and plan, last night's sleep with stages and sleep debt. Settings: a wake-up time for each weekday, sleep need, move reminders and the bar display.">
     <figcaption>The panel's Move view (top left) by day and Sleep view (bottom left) in the evening, and its settings page (right). In the bar, a moon turns red once you're past bedtime.</figcaption>
   </figure>
 
@@ -145,7 +145,7 @@
   <p>An hour before bedtime the bar shows a moon. Past bedtime it turns red. Notifications stay few, and only while you're actually at the computer: a wind-down notice, a bedtime notice, two reminders after it, then silence. In the morning you get one summary of the night.</p>
 
   <h2>Install</h2>
-  <pre><code>omarchy plugin add https://github.com/lorismaz/omarchy-helio-strap --enable</code></pre>
+  <pre><code>omarchy plugin add https://github.com/lorismaz/omarchy-ebb --enable</code></pre>
   <p>The panel talks to the strap through a small Bluetooth helper written in Rust. The first time you open the panel it offers <strong>Install helper</strong>, which downloads the helper for your machine from the project's GitHub release, checks it against a pinned SHA-256 and installs it to <code>~/.local/share/helio-strap/bin/</code>.</p>
   <p>Pair the strap in Omarchy's Bluetooth panel. Heart rate, zones and battery work straight away.</p>
 
@@ -155,8 +155,8 @@
 
   <h2>Settings</h2>
   <p>Open the panel and click <strong>Settings</strong>: wake-up time for each weekday, sleep you need, minutes to fall asleep, bedtime reminders, step goal, maximum heart rate, what the bar shows, and the strap to follow. Everything also works from the terminal:</p>
-  <pre><code>omarchy bar set lorismaz.helio-strap wakeWed 09:00
-omarchy bar set lorismaz.helio-strap sleepNeed 7h30</code></pre>
+  <pre><code>omarchy bar set lorismaz.ebb wakeWed 09:00
+omarchy bar set lorismaz.ebb sleepNeed 7h30</code></pre>
 
   <h2>Why these rules</h2>
   <ul>
@@ -171,9 +171,9 @@ omarchy bar set lorismaz.helio-strap sleepNeed 7h30</code></pre>
   <p>Everything stays on your machine. The only network traffic is the optional Zepp login during setup, which talks to Zepp's servers.</p>
 
   <footer>
-    MIT licensed. The helper is written from the protocol notes in <a href="https://github.com/lorismaz/omarchy-helio-strap/blob/main/PROTOCOL.md">PROTOCOL.md</a>, facts from public reverse-engineering of Zepp OS devices (notably by <a href="https://codeberg.org/Freeyourgadget/Gadgetbridge">Gadgetbridge</a>); the Zepp login follows <a href="https://codeberg.org/argrento/huami-token">huami-token</a>.
+    MIT licensed. The helper is written from the protocol notes in <a href="https://github.com/lorismaz/omarchy-ebb/blob/main/PROTOCOL.md">PROTOCOL.md</a>, facts from public reverse-engineering of Zepp OS devices (notably by <a href="https://codeberg.org/Freeyourgadget/Gadgetbridge">Gadgetbridge</a>); the Zepp login follows <a href="https://codeberg.org/argrento/huami-token">huami-token</a>.
     Not affiliated with or endorsed by Amazfit, Zepp Health or Huami.
-    Source on <a href="https://github.com/lorismaz/omarchy-helio-strap">GitHub</a>.
+    Source on <a href="https://github.com/lorismaz/omarchy-ebb">GitHub</a>.
   </footer>
 </main>
 </body>

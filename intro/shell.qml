@@ -10,7 +10,7 @@ ShellRoot {
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
-    WlrLayershell.namespace: "helio-strap-intro"
+    WlrLayershell.namespace: "ebb-intro"
     color: "black"
     Cracktro {
       anchors.fill: parent

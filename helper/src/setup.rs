@@ -1,4 +1,4 @@
-//! `helio-strap setup [name-filter]`: save the strap's auth key to the keyring,
+//! `ebb-strap setup [name-filter]`: save the strap's auth key to the keyring,
 //! fetched from a Zepp account or pasted. Opened in a terminal by the panel's
 //! "Set up steps" button. The password and the key are never shown or stored
 //! anywhere but the keyring.
@@ -107,7 +107,7 @@ fn from_paste() -> Option<[u8; 16]> {
 }
 
 async fn steps(filter: &str) -> i32 {
-    println!("Helio Strap · set up steps\n");
+    println!("Ebb · set up steps\n");
     println!("Steps come over the strap's encrypted Zepp channel, which needs the strap's");
     println!("auth key. It is saved to your keyring, not to a file.\n");
 

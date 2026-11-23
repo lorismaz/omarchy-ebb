@@ -6,7 +6,9 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::SystemTime;
 
-const SERVICE: &str = "omarchy-helio-strap";
+const SERVICE: &str = "omarchy-ebb";
+/// Where keys were saved before the plugin was renamed; still read.
+const OLD_SERVICE: &str = "omarchy-helio-strap";
 
 /// '0x00AB…' / 'aa:bb:…' / '00ab…' -> 16 bytes
 pub fn parse_key(text: &str) -> Option<[u8; 16]> {
@@ -23,8 +25,12 @@ pub fn parse_key(text: &str) -> Option<[u8; 16]> {
 }
 
 pub fn lookup(address: &str) -> Option<[u8; 16]> {
+    lookup_in(SERVICE, address).or_else(|| lookup_in(OLD_SERVICE, address))
+}
+
+fn lookup_in(service: &str, address: &str) -> Option<[u8; 16]> {
     let out = Command::new("secret-tool")
-        .args(["lookup", "service", SERVICE, "address", &address.to_ascii_uppercase()])
+        .args(["lookup", "service", service, "address", &address.to_ascii_uppercase()])
         .stdin(Stdio::null())
         .stderr(Stdio::null())
         .output()
@@ -35,7 +41,7 @@ pub fn lookup(address: &str) -> Option<[u8; 16]> {
 pub fn store(address: &str, key: &[u8; 16]) -> std::io::Result<()> {
     let address = address.to_ascii_uppercase();
     let mut child = Command::new("secret-tool")
-        .args(["store", &format!("--label=Helio Strap auth key ({address})"), "service", SERVICE, "address", &address])
+        .args(["store", &format!("--label=Ebb: Helio Strap auth key ({address})"), "service", SERVICE, "address", &address])
         .stdin(Stdio::piped())
         .spawn()?;
     let hex: String = key.iter().map(|b| format!("{b:02x}")).collect();
@@ -52,7 +58,7 @@ pub fn store(address: &str, key: &[u8; 16]) -> std::io::Result<()> {
 /// even when setup saved the very same key again.
 fn marker() -> Option<PathBuf> {
     let dir = std::env::var_os("XDG_RUNTIME_DIR").or_else(|| std::env::var_os("XDG_CACHE_HOME"))?;
-    Some(PathBuf::from(dir).join("helio-strap-key-saved"))
+    Some(PathBuf::from(dir).join("ebb-key-saved"))
 }
 
 fn mark_saved() {

@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "id": "lorismaz.helio-strap",
-  "name": "Helio Strap",
-  "version": "1.2.2",
+  "id": "lorismaz.ebb",
+  "name": "Ebb",
+  "version": "1.3.0",
   "author": "lorismaz",
   "license": "MIT",
-  "description": "Movement by day and a sleep coach by night, from an Amazfit Helio Strap: steps, move reminders, sleep, sleep debt and bedtime reminders in the Omarchy bar.",
+  "description": "Flow by day, ebb by night: steps and move reminders while you're up, a sleep coach, naps and sleep debt at night, from an Amazfit Helio Strap in the Omarchy bar.",
   "kinds": [
     "bar-widget"
   ],
@@ -13,7 +13,7 @@
     "barWidget": "Panel.qml"
   },
   "barWidget": {
-    "displayName": "Helio Strap",
+    "displayName": "Ebb",
     "description": "Steps and move reminders during the day; from two hours before bedtime the panel becomes a sleep coach, and a moon in the bar turns red past bedtime.",
     "category": "Status",
     "allowMultiple": false,

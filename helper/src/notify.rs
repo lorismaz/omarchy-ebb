@@ -57,7 +57,7 @@ fn send(note: &Note) -> Result<(), dbus::Error> {
     let (_id,): (u32,) = proxy.method_call(
         "org.freedesktop.Notifications",
         "Notify",
-        ("Helio Strap", 0u32, "weather-clear-night", note.title.as_str(), note.body.as_str(), Vec::<String>::new(), hints, -1i32),
+        ("Ebb", 0u32, "weather-clear-night", note.title.as_str(), note.body.as_str(), Vec::<String>::new(), hints, -1i32),
     )?;
     Ok(())
 }

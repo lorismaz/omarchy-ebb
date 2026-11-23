@@ -273,6 +273,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "ebb-strap"
+version = "1.3.0"
+dependencies = [
+ "aes",
+ "bluer",
+ "chrono",
+ "crc32fast",
+ "dbus",
+ "futures",
+ "getrandom 0.4.3",
+ "rpassword",
+ "serde",
+ "serde_json",
+ "tokio",
+ "ureq",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "errno"
 version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -429,26 +449,6 @@ name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
-
-[[package]]
-name = "helio-strap"
-version = "1.2.2"
-dependencies = [
- "aes",
- "bluer",
- "chrono",
- "crc32fast",
- "dbus",
- "futures",
- "getrandom 0.4.3",
- "rpassword",
- "serde",
- "serde_json",
- "tokio",
- "ureq",
- "url",
- "uuid",
-]
 
 [[package]]
 name = "hex"

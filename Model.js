@@ -1,6 +1,6 @@
 .pragma library
 
-// Pure helpers for the Helio Strap plugin, kept free of QML so
+// Pure helpers for Ebb, kept free of QML so
 // tests/model.test.js can exercise them under node.
 
 var MAX_LINE = 2048
@@ -40,7 +40,7 @@ function normalizeAddress(v) {
   return /^[0-9A-F]{2}(:[0-9A-F]{2}){5}$/.test(s) ? s : ""
 }
 
-// One line of `helio-strap stream` output -> a validated event, or null.
+// One line of `ebb-strap stream` output -> a validated event, or null.
 function parseLine(line) {
   var raw = String(line || "")
   if (raw.length === 0 || raw.length > MAX_LINE) return null

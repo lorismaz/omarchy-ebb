@@ -2,24 +2,28 @@ import QtQuick
 import QtMultimedia
 import "banner.js" as Banner
 
-// An intro in Omarchy's own visual language: the name in the block letters of
-// the Omarchy logo, decrypted like the screensaver's text effects, crossed by
-// the 45-degree sheen of the About screen on every other bar, a heart trace
-// beating on the music, and a terminal line typing the credits. Theme colours
-// in, nothing else. Any key or click ends it.
+// Ebb's intro, in Omarchy's own visual language: the name in the block letters
+// of the Omarchy logo, decrypted like the screensaver's text effects and crossed
+// by the About screen's 45-degree sheen; under it a tide that flows in (the day,
+// moving) and ebbs out (the night, resting) in time with the music, a ripple
+// running across it on every heartbeat; then a terminal line typing the
+// credits. Theme colours in, nothing else. Any key or click ends it.
 Item {
   id: root
 
   property var rows: Banner.ROWS
-  property string version: "1.2.2"
+  property string version: "1.3.0"
   property var lines: [
-    "helio-strap --version  " + version,
-    "steps and move reminders, proven by your feet",
-    "sleep, sleep debt and a coach at bedtime",
+    "ebb-strap --version  " + version,
+    "flow by day: steps and move reminders, proven by your feet",
+    "ebb by night: sleep debt, naps and a coach at bedtime",
+    "for the amazfit helio strap, in your omarchy bar",
     "rust + qml. the music is pure math",
     "greetings to the omarchy crew and the gadgetbridge hackers",
     "press any key"
   ]
+  property string flowLabel: "flow  day, move"
+  property string ebbLabel: "ebb  night, rest"
   property url music: Qt.resolvedUrl("intro.ogg")
   property real bpm: 140
   property bool sound: true
@@ -61,13 +65,11 @@ Item {
 
     readonly property string scramble: "░▒▓▖▗▘▙▚▛▜▝▞▟#%&*+=<>/\\"
     readonly property real decryptEnd: 2.6
-    readonly property int ecgRows: 4
+    readonly property int tideRows: 6
+    readonly property int span: 60              // grid width in cells: the tide and the terminal line
 
     property var cells: []          // banner cells: {r, c, ch, appear, reveal}
     property int cols: 0
-    property var trace: []          // per column: {v, at}
-    property real head: 0
-    property real lastT: 0
 
     function hex(c, a) { return Qt.rgba(c.r, c.g, c.b, a === undefined ? 1 : a) }
 
@@ -83,15 +85,6 @@ Item {
                        reveal: 0.7 + c / 70 * 1.2 + Math.random() * 0.7 })
         }
       }
-      trace = []
-      for (let i = 0; i < cols; i++) trace.push(null)
-    }
-
-    // One heartbeat, phase 0..1: P wave, QRS spike, T wave. About -0.3..1
-    function ecg(p) {
-      const bump = (c, w, h) => h * Math.exp(-((p - c) * (p - c)) / (2 * w * w))
-      return bump(0.12, 0.025, 0.12) - bump(0.27, 0.008, 0.12) + bump(0.30, 0.010, 1.0)
-           - bump(0.33, 0.010, 0.28) + bump(0.55, 0.05, 0.25)
     }
 
     onPaint: {
@@ -101,12 +94,13 @@ Item {
       const music = player.playbackState === MediaPlayer.PlayingState ? player.position / 1000 : t
       const beat = music * root.bpm / 60
 
-      // Grid: banner, gap, heart trace, gap, terminal line.
-      const total = root.rows.length + 2 + ecgRows + 3
-      let ch = Math.floor(Math.min(height / (total + 6), width / (cols + 8) * 2))
+      // Grid: banner, gap, tide, gap, terminal line.
+      const total = root.rows.length + 2 + tideRows + 3
+      let ch = Math.floor(Math.min(height / (total + 6), width / (span + 8) * 2))
       ch -= ch % 2
       const cw = ch / 2
-      const x0 = Math.round((width - cols * cw) / 2)
+      const gx = Math.round((width - span * cw) / 2)                 // grid left
+      const x0 = gx + Math.round((span - cols) / 2) * cw              // banner left
       const y0 = Math.round((height - total * ch) / 2)
 
       ctx.fillStyle = root.background
@@ -136,45 +130,35 @@ Item {
         else ctx.fillRect(x, y, cw, ch)
       }
 
-      // ---- Heart trace: a monitor sweep, one heartbeat every two beats.
-      const ey = y0 + (root.rows.length + 2) * ch
-      const levels = ecgRows * 2
-      const speed = cols / (6 * 60 / root.bpm)                          // three heartbeats a sweep
-      if (t > 0.6) {
-        const dt = Math.min(0.1, t - lastT)
-        const from = head
-        head = (head + dt * speed) % cols
-        const steps = Math.ceil(dt * speed) + 1
-        for (let s = 0; s < steps; s++) {
-          const col = (Math.floor(from) + s) % cols
-          const ago = (steps - 1 - s) / speed
-          // Keep the strongest sample across the column, so the narrow spike is never missed.
-          let v = 0
-          for (let k = 0; k < 6; k++) {
-            const p = ((music - ago - k / 6 / speed) * root.bpm / 60 / 2 % 1 + 1) % 1
-            const e = ecg(p)
-            if (Math.abs(e) > Math.abs(v)) v = e
-          }
-          trace[col] = { v: v, at: t - ago }
+      // ---- The tide: flows in over eight beats, ebbs out over the next eight.
+      const ty0 = y0 + (root.rows.length + 2) * ch
+      const levels = tideRows * 2
+      const phase = beat / 16 * 2 * Math.PI
+      const rising = Math.sin(phase) >= 0
+      const fill = Math.min(1, t / decryptEnd)                         // the water comes in with the logo
+      const level = (0.5 - 0.3 * Math.cos(phase)) * fill
+      const pulse = (beat / 2) % 1                                    // a heartbeat every two beats
+      const at = pulse * span * 1.3 - span * 0.15
+      for (let c = 0; c < span; c++) {
+        const ripple = 0.16 * Math.exp(-((c - at) * (c - at)) / 6) * (1 - pulse)
+        const swell = 0.09 * Math.sin(c * 0.33 - music * 2.4) + 0.05 * Math.sin(c * 0.9 + music * 3.7)
+        const n = Math.max(0, Math.min(levels, Math.round((level + (swell + ripple) * fill) * levels)))
+        for (let l = 0; l < n; l++) {
+          const crest = l === n - 1
+          ctx.fillStyle = crest && ripple > 0.05 ? "#ffffff"
+                        : crest ? root.foreground
+                        : hex(root.accent, 0.25 + 0.6 * (l + 1) / levels)
+          ctx.fillRect(gx + c * cw, ty0 + (levels - 1 - l) * ch / 2, cw, ch / 2)
         }
       }
-      lastT = t
-      const life = cols / speed
-      let prev = null
-      for (let c = 0; c < cols; c++) {
-        const s = trace[c]
-        const age = s ? t - s.at : life
-        if (age >= life) { prev = null; continue }
-        const a = 1 - age / life
-        const lv = Math.max(0, Math.min(levels - 1, Math.round((s.v + 0.3) / 1.3 * (levels - 1))))
-        const lo = prev === null ? lv : Math.min(lv, prev), hi = prev === null ? lv : Math.max(lv, prev)
-        ctx.fillStyle = c === Math.floor(head) ? "#ffffff" : hex(root.urgent, 0.2 + 0.8 * a)
-        for (let l = lo; l <= hi; l++)
-          ctx.fillRect(x0 + c * cw, ey + (levels - 1 - l) * ch / 2, cw, ch / 2)
-        prev = lv
+      ctx.fillStyle = hex(root.muted, 0.35)                           // the shore line
+      ctx.fillRect(gx, ty0 + tideRows * ch + ch / 4, span * cw, 1)
+      if (t > decryptEnd) {
+        ctx.font = Math.round(ch * 0.7) + "px \"" + root.fontFamily + "\""
+        ctx.textAlign = "right"
+        ctx.fillStyle = hex(root.muted, 0.9)
+        ctx.fillText((rising ? "↑ " : "↓ ") + (rising ? root.flowLabel : root.ebbLabel), gx + span * cw, ty0 - ch * 0.4)
       }
-      ctx.fillStyle = hex(root.muted, 0.35)
-      for (let c = 0; c < cols; c += 2) ctx.fillRect(x0 + c * cw + cw / 2 - 1, ey + ecgRows * ch + ch / 4, 2, 2)
 
       // ---- Terminal line typing the credits.
       if (t > decryptEnd) {
@@ -188,13 +172,13 @@ Item {
         const shown = local < typed ? Math.floor(local * typeRate)
                     : local < typed + hold ? line.length
                     : Math.max(0, line.length - Math.floor((local - typed - hold) * eraseRate))
-        const ty = y0 + (root.rows.length + 2 + ecgRows + 2) * ch + ch / 2
+        const ty = y0 + (root.rows.length + 2 + tideRows + 2) * ch + ch / 2
         ctx.font = Math.round(ch * 0.85) + "px \"" + root.fontFamily + "\""
         ctx.textAlign = "left"
         const prompt = "❯ "
         ctx.fillStyle = root.accent
-        ctx.fillText(prompt, x0, ty)
-        const px = x0 + ctx.measureText(prompt).width
+        ctx.fillText(prompt, gx, ty)
+        const px = gx + ctx.measureText(prompt).width
         const text = line.slice(0, shown)
         ctx.fillStyle = root.foreground
         ctx.fillText(text, px, ty)

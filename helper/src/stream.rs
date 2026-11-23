@@ -1,4 +1,4 @@
-//! `helio-strap stream`: follow the strap over BlueZ and print one JSON object
+//! `ebb-strap stream`: follow the strap over BlueZ and print one JSON object
 //! per line for the panel.
 //!
 //! {"t":"status","state":"searching|disconnected|connecting|connected","name":…,"address":…}
@@ -253,7 +253,7 @@ enum Lock {
 
 fn take_lock() -> Lock {
     let Some(dir) = std::env::var_os("XDG_RUNTIME_DIR") else { return Lock::Unavailable };
-    let path = std::path::Path::new(&dir).join("helio-strap-stream.lock");
+    let path = std::path::Path::new(&dir).join("ebb-stream.lock");
     let Ok(f) = std::fs::OpenOptions::new().create(true).truncate(false).write(true).open(path) else {
         return Lock::Unavailable;
     };

@@ -10,18 +10,18 @@ import qs.Ui
 import "Model.js" as Model
 import "intro"
 
-// Helio Strap: live heart rate from an Amazfit Helio Strap (or any paired
-// Bluetooth LE heart rate strap) in the bar. the helio-strap helper follows the strap over
+// Ebb: live heart rate from an Amazfit Helio Strap (or any paired
+// Bluetooth LE heart rate strap) in the bar. The ebb-strap helper follows the strap over
 // BlueZ and streams JSON lines; this widget keeps the session's statistics,
 // heart rate zones and a ten-minute chart.
 //
-//   omarchy-shell lorismaz.helio-strap toggle
-//   omarchy-shell lorismaz.helio-strap resetSession
-//   omarchy-shell lorismaz.helio-strap intro          (play or stop the intro)
+//   omarchy-shell lorismaz.ebb toggle
+//   omarchy-shell lorismaz.ebb resetSession
+//   omarchy-shell lorismaz.ebb intro          (play or stop the intro)
 Panel {
   id: root
-  moduleName: "lorismaz.helio-strap"
-  ipcTarget: "lorismaz.helio-strap"
+  moduleName: "lorismaz.ebb"
+  ipcTarget: "lorismaz.ebb"
   manageIpc: false
 
   readonly property string deviceFilter: String(setting("deviceName", "Helio") || "")
@@ -41,7 +41,7 @@ Panel {
   readonly property color dim: Qt.darker(foreground, 1.4)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
-  // From helio-strap stream
+  // From ebb-strap stream
   property string linkState: "searching"
   property string deviceName: ""
   property string firmware: ""
@@ -154,7 +154,7 @@ Panel {
   // ---------- In-panel settings ----------
   property bool showSettings: false
   property string settingsTab: "sleep"
-  readonly property string pluginVersion: "1.2.2"   // keep in step with manifest.json
+  readonly property string pluginVersion: "1.3.0"   // keep in step with manifest.json
 
   // ---------- Intro (Settings > About) ----------
   property bool introOn: false
@@ -167,7 +167,7 @@ Panel {
       exclusionMode: ExclusionMode.Ignore
       WlrLayershell.layer: WlrLayer.Overlay
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
-      WlrLayershell.namespace: "helio-strap-intro"
+      WlrLayershell.namespace: "ebb-intro"
       color: Commons.Color.background
       Cracktro {
         anchors.fill: parent
@@ -198,7 +198,7 @@ Panel {
 
   function setupSteps() {
     root.close()
-    Quickshell.execDetached(["omarchy-launch-tui", "--app-id=org.omarchy.helio-strap-setup",
+    Quickshell.execDetached(["omarchy-launch-tui", "--app-id=org.omarchy.ebb-setup",
                              root.helperPath, "setup", root.deviceFilter])
   }
 
@@ -208,7 +208,7 @@ Panel {
   }
 
   ShellIpc {
-    target: "lorismaz.helio-strap"
+    target: "lorismaz.ebb"
 
     function open() { root.open() }
     function close() { root.close() }
@@ -231,14 +231,14 @@ Panel {
   implicitHeight: button.implicitHeight
 
   // ---------- Helper process ----------
-  // helio-strap is found on PATH (a package or a local build) or in the
+  // ebb-strap is found on PATH (a package or a local build) or in the
   // plugin's own data folder, where install-helper.sh puts the release binary.
   property bool helperMissing: false
   property bool helperOutdated: false
   property string helperPath: ""
   property string helperVersion: ""
   // Oldest helper that follows only the confirmed strap and takes notifications on stdin.
-  readonly property string helperRequired: "1.2.2"
+  readonly property string helperRequired: "1.3.0"
   readonly property string installScript: Qt.resolvedUrl("install-helper.sh").toString().replace(/^file:\/\//, "")
   readonly property var helperCommand: [root.helperPath, "stream", root.deviceFilter, root.autoReconnect ? "1" : "0", root.confirmedAddress]
   onHelperCommandChanged: if (helperProc.running) helperProc.running = false   // restartTimer relaunches it
@@ -252,13 +252,13 @@ Panel {
 
   Process {
     id: helperCheck
-    command: ["sh", "-c", "p=$(command -v helio-strap) || { p=\"${XDG_DATA_HOME:-$HOME/.local/share}/helio-strap/bin/helio-strap\"; [ -x \"$p\" ] || exit 1; }; echo \"$p\"; \"$p\" --version"]
+    command: ["sh", "-c", "p=$(command -v ebb-strap) || { p=\"${XDG_DATA_HOME:-$HOME/.local/share}/ebb/bin/ebb-strap\"; [ -x \"$p\" ] || exit 1; }; echo \"$p\"; \"$p\" --version"]
     running: true
     stdout: SplitParser {
       onRead: function(line) {
         var l = String(line).trim()
         if (root.helperPath === "") root.helperPath = l
-        else if (root.helperVersion === "") root.helperVersion = l.replace(/^helio-strap\s+/, "")
+        else if (root.helperVersion === "") root.helperVersion = l.replace(/^ebb-strap\s+/, "")
       }
     }
     onStarted: { root.helperPath = ""; root.helperVersion = "" }
@@ -336,7 +336,9 @@ Panel {
   readonly property int bedtime: plan.bedtime
   readonly property bool lateAlerts: setting("lateAlerts", true) !== false
 
-  readonly property string stateDir: Quickshell.env("HOME") + "/.local/state/helio-strap"
+  // Empty until stateSetup has run: nothing is read or written before.
+  property bool stateReady: false
+  readonly property string stateDir: stateReady ? Quickshell.env("HOME") + "/.local/state/ebb" : ""
   property var day: Model.freshDay(Model.dayKey(new Date()))
   property bool dayLoaded: false
 
@@ -432,7 +434,7 @@ Panel {
 
   function saveDay(next) {
     root.day = next
-    dayFile.setText(JSON.stringify(next) + "\n")
+    if (root.stateDir !== "") dayFile.setText(JSON.stringify(next) + "\n")
   }
 
   function tick() {
@@ -488,7 +490,7 @@ Panel {
 
   FileView {
     id: dayFile
-    path: root.stateDir + "/day.json"
+    path: root.stateDir !== "" ? root.stateDir + "/day.json" : ""
     atomicWrites: true
     printErrors: false
     onLoaded: {
@@ -499,7 +501,7 @@ Panel {
   }
 
   // One sleep history per confirmed strap.
-  readonly property string nightsPath: confirmedAddress !== ""
+  readonly property string nightsPath: confirmedAddress !== "" && root.stateDir !== ""
     ? root.stateDir + "/nights-" + confirmedAddress.replace(/:/g, "") + ".json" : ""
   onNightsPathChanged: root.nights = []
 
@@ -511,8 +513,15 @@ Panel {
     onLoaded: root.nights = Model.mergeNights(Model.parseNightList(text()), root.nights, Date.now())
   }
 
-  // Private to this account (0700), also when the folder already exists.
-  Component.onCompleted: Quickshell.execDetached(["install", "-d", "-m", "700", root.stateDir])
+  // Ebb was called Helio Strap: its state moves over once. The folder is
+  // private to this account (0700), also when it already exists.
+  Process {
+    id: stateSetup
+    running: true
+    command: ["sh", "-c", "n=\"$HOME/.local/state/ebb\"; o=\"$HOME/.local/state/helio-strap\"; "
+      + "[ -e \"$n\" ] || { [ -d \"$o\" ] && mv \"$o\" \"$n\"; }; install -d -m 700 \"$n\""]
+    onExited: root.stateReady = true
+  }
 
   Timer {
     interval: 60000

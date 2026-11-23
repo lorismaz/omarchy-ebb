@@ -1,8 +1,8 @@
-# Helio Strap protocol notes
+# Amazfit Helio Strap protocol notes
 
 Facts about how an Amazfit Helio Strap (Zepp OS) talks over Bluetooth LE and
 how a Zepp account hands out its key, as observed on the wire. These notes are
-the only reference the `helio-strap` helper is written from. All integers are
+the only reference Ebb's `ebb-strap` helper is written from. All integers are
 little-endian unless stated.
 
 ## 1. Standard GATT (no auth)
@@ -148,5 +148,5 @@ App headers: `appname`/`app_name: com.huami.midong`, `appplatform: android_phone
 ## 4. Key storage
 
 The key is kept in the desktop keyring (Secret Service) under the attributes
-`service=omarchy-helio-strap`, `address=<MAC in upper case>`, as 32 lower-case
+`service=omarchy-ebb` (before Ebb 1.3.0, `omarchy-helio-strap`, still read), `address=<MAC in upper case>`, as 32 lower-case
 hex digits.

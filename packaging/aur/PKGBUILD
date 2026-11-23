@@ -3,12 +3,12 @@
 # Release: tag vX.Y.Z on GitHub, set pkgver, run `updpkgsums` and
 # `makepkg --printsrcinfo > .SRCINFO`, then push this folder to the AUR.
 
-pkgname=helio-strap
+pkgname=ebb-strap
 pkgver=1.2.0
 pkgrel=1
-pkgdesc="Bluetooth helper for the Helio Strap Omarchy plugin: heart rate, steps and sleep from an Amazfit Helio Strap"
+pkgdesc="Bluetooth helper for Ebb, the Omarchy plugin: heart rate, steps and sleep from an Amazfit Helio Strap"
 arch=('x86_64' 'aarch64')
-url="https://github.com/lorismaz/omarchy-helio-strap"
+url="https://github.com/lorismaz/omarchy-ebb"
 license=('MIT')
 depends=('bluez' 'dbus' 'glibc' 'libgcc' 'libsecret')
 makedepends=('cargo')
@@ -16,7 +16,7 @@ options=('!lto')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
 sha256sums=('bf228b9ae11e5943b4e9a34e8ea63298f9a495905dbac8e2f2cbb0fbc8128dbd')
 
-_dir() { echo "$srcdir/omarchy-helio-strap-$pkgver/helper"; }
+_dir() { echo "$srcdir/omarchy-ebb-$pkgver/helper"; }
 
 prepare() {
   cd "$(_dir)"
@@ -39,7 +39,7 @@ check() {
 
 package() {
   cd "$(_dir)"
-  install -Dm755 target/release/helio-strap "$pkgdir/usr/bin/helio-strap"
+  install -Dm755 target/release/ebb-strap "$pkgdir/usr/bin/ebb-strap"
   install -Dm644 ../LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
   install -Dm644 ../PROTOCOL.md "$pkgdir/usr/share/doc/$pkgname/PROTOCOL.md"
 }

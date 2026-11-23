@@ -1,10 +1,10 @@
 [package]
-name = "helio-strap"
-version = "1.2.2"
+name = "ebb-strap"
+version = "1.3.0"
 edition = "2024"
-description = "Bluetooth helper for the Helio Strap Omarchy plugin: heart rate, steps and sleep from an Amazfit Helio Strap"
+description = "Bluetooth helper for Ebb, the Omarchy plugin: heart rate, steps and sleep from an Amazfit Helio Strap"
 license = "MIT"
-repository = "https://github.com/lorismaz/omarchy-helio-strap"
+repository = "https://github.com/lorismaz/omarchy-ebb"
 publish = false
 
 [dependencies]
