@@ -225,5 +225,6 @@ omarchy-shell lorismaz.ebb doneForTonight  # mute reminders until morning
 omarchy plugin remove lorismaz.ebb
 rm -rf ~/.local/share/ebb                          # the Bluetooth helper
 secret-tool clear service omarchy-ebb              # forget the saved auth key
+secret-tool clear service omarchy-helio-strap      # and its copy from before Ebb, if any
 rm -rf ~/.local/state/ebb                          # forget sleep history and screen time
 ```
