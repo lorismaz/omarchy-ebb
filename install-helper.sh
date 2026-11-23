@@ -8,10 +8,10 @@
 
 set -euo pipefail
 
-VERSION=1.3.0
+VERSION=1.4.0
 declare -A SHA256=(
-  [x86_64]=30e5546b4e95455b16e9421005aed6b3d208e90a5e436ce01fbbc7f6c9a3fe86
-  [aarch64]=101704b5fcfa083c27940f5ca78a379b30356e3a9acd818a7a6d84f16e4f4c24
+  [x86_64]=729c5e3e3c1ebc169d9f3352303ce29c83f3f5f724d6be3dd2057b10b0244ddb
+  [aarch64]=78e83417429b4ef36f6f24862c349e9784f73c81d311b9e4b488faf8bfb95d79
 )
 REPO=https://github.com/lorismaz/omarchy-ebb
 DATA="${XDG_DATA_HOME:-$HOME/.local/share}"
